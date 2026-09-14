@@ -1,0 +1,498 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{hyperref}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{multirow}
+\usepackage{enumitem}
+
+\lstdefinestyle{Cstyle}{
+  language=C,
+  basicstyle=\ttfamily\footnotesize,
+  numbers=left,
+  numberstyle=\tiny,
+  frame=single,
+  breaklines=true,
+  tabsize=2,
+  commentstyle=\color{gray},
+  keywordstyle=\color{blue},
+  stringstyle=\color{red},
+}
+\lstdefinestyle{asmstyle}{
+  language={[x86masm]Assembler},
+  basicstyle=\ttfamily\footnotesize,
+  numbers=left,
+  numberstyle=\tiny,
+  frame=single,
+  breaklines=true,
+  tabsize=2,
+  commentstyle=\color{gray},
+}
+
+\hypersetup{
+  colorlinks=true,
+  pdftitle={BradISA V1 Specification},
+  pdfauthor={Brad Devices},
+}
+
+\usepackage{bradbrand}
+
+\begin{document}
+\bradtitlepage{BradISA V1}{%
+  \textbf{BradISA V1}}{%
+  Instruction Set Architecture Specification}{%
+  Revision 1.0 --- Kinetic Gen1 --- July 2026}
+\newpage
+
+\tableofcontents
+\newpage
+
+\section{Introduction}
+
+BradISA V1 (Kinetic Gen1) is a 32-bit fixed-length RISC instruction set architecture
+designed for the Brad Devices BradCore processor family. It provides 16 general-purpose
+registers, 16 opcodes encoded in a 4-bit primary opcode field, and three primary
+instruction formats.
+
+\subsection{Data Model}
+\begin{itemize}[nosep]
+  \item \textbf{Word size:} 32 bits (4 bytes)
+  \item \textbf{Address space:} 32-bit byte-addressed
+  \item \textbf{Page size:} 4096 bytes (4\,KiB)
+  \item \textbf{Endianness:} Little-endian
+  \item \textbf{Instruction length:} 32 bits, fixed
+\end{itemize}
+
+\subsection{Pipeline Models}
+BradISA defines two pipeline models:
+
+\begin{table}[H]
+\centering
+\caption{Pipeline model comparison}
+\begin{tabular}{lcc}
+\toprule
+Property               & Phoenix            & Falcon           \\
+\midrule
+Pipeline depth         & 10 stages          & 5 stages         \\
+Issue width            & Octa-issue         & Single-issue     \\
+Execution order        & Out-of-order       & In-order         \\
+ROB size              & 128 entries         & ---              \\
+Typical IPC           & 2.2                & 0.9              \\
+Peak IPC              & 5.0                & 1.0              \\
+Target DMIPS/MHz      & 5.5                & 2.2              \\
+Target frequency      & 3.0--5.2\,GHz      & 2.4--3.6\,GHz    \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\newpage
+
+\section{Register File}
+
+BradISA V1 provides 16~32-bit general-purpose registers, numbered {\tt r0}
+through {\tt r15}. Register {\tt r0} is hardwired to zero; writes to {\tt r0}
+are silently discarded.
+
+\subsection{ABI Convention}
+\begin{table}[H]
+\centering
+\caption{Application Binary Interface register map}
+\begin{tabular}{cll}
+\toprule
+Register & ABI Name  & Purpose \\
+\midrule
+{\tt r0}  & {\tt zero} & Hardwired zero \\
+{\tt r1}  & {\tt a0}   & Argument~\#0 / return value \\
+{\tt r2}  & {\tt a1}   & Argument~\#1 \\
+{\tt r3}  & {\tt a2}   & Argument~\#2 \\
+{\tt r4}  & {\tt a3}   & Argument~\#3 \\
+{\tt r5}  & {\tt t0}   & Temporary~\#0 \\
+{\tt r6}  & {\tt t1}   & Temporary~\#1 \\
+{\tt r7}  & {\tt t2}   & Temporary~\#2 \\
+{\tt r8}  & {\tt s0}   & Callee-saved~\#0 \\
+{\tt r9}  & {\tt s1}   & Callee-saved~\#1 \\
+{\tt r10} & {\tt s2}   & Callee-saved~\#2 \\
+{\tt r11} & {\tt s3}   & Callee-saved~\#3 \\
+{\tt r12} & {\tt s4}   & Callee-saved~\#4 \\
+{\tt r13} & {\tt sp}   & Stack pointer \\
+{\tt r14} & {\tt lr}   & Link register \\
+{\tt r15} & {\tt pc}   & Program counter (read-only) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Calling Convention}
+\begin{itemize}[nosep]
+  \item Arguments 0--3 are passed in {\tt r1--r4}. Additional arguments are
+        passed on the stack.
+  \item Return value is placed in {\tt r1}.
+  \item Callee-saved registers {\tt r8--r12} must be preserved across function
+        calls.
+  \item The link register {\tt r14} holds the return address on {\tt CALL}.
+  \item The stack grows downward; {\tt r13 (sp)} must point to the last used
+        stack slot.
+\end{itemize}
+
+\newpage
+
+\section{Instruction Formats}
+
+All BradISA V1 instructions are 32~bits wide. The three primary formats are:
+
+\begin{table}[H]
+\centering
+\caption{Instruction format field layout}
+\begin{tabular}{clllll}
+\toprule
+Format  & Bits [31:28] & [27:24] & [23:20] & [19:16] & [15:0] \\
+\midrule
+{\tt RRR} & opcode       & rd      & rs1     & rs2     & --- \\
+{\tt RI}  & opcode       & rd      & rs1     & ---     & immediate \\
+{\tt BR}  & opcode       & ---     & rs1     & ---     & offset ($\times$4) \\
+{\tt JMP} & opcode       & ---     & ---     & ---     & offset ($\times$4) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{RRR Format --- Register-to-Register ALU}
+Used by all eight ALU instructions (ADD, SUB, MUL, AND, OR, XOR, SHL, SHR).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=0.48cm]
+  \bwfield{32}{RRR --- register-to-register ALU}
+  \bwslicen{28}{4}{op}
+  \bwslicen{24}{4}{rd}
+  \bwslicen{20}{4}{rs1}
+  \bwslicen{16}{4}{rs2}
+  \bwsliceh{0}{16}{16\textquoteright b0}
+\end{tikzpicture}
+\caption{RRR format --- 32-bit register-to-register encoding (gold = field, grey = reserved/zero)}
+\end{figure}
+
+\[
+\texttt{instruction[31:0]} = \{ \texttt{op[3:0]}, \texttt{rd[3:0]}, \texttt{rs1[3:0]}, \texttt{rs2[3:0]}, 16\textrm{\textquoteright}b0 \}
+\]
+
+\subsection{RI Format --- Register-Immediate}
+Used by ADDI, LDW, and STW.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=0.48cm]
+  \bwfield{32}{RI --- register-immediate}
+  \bwslicen{28}{4}{op}
+  \bwslicen{24}{4}{rd}
+  \bwslicen{20}{4}{rs1}
+  \bwsliceh{16}{16}{imm[15:0]}
+\end{tikzpicture}
+\caption{RI format --- register-immediate encoding (sign-extended immediate)}
+\end{figure}
+
+\[
+\texttt{instruction[31:0]} = \{ \texttt{op[3:0]}, \texttt{rd[3:0]}, \texttt{rs1[3:0]}, \texttt{imm[15:0]} \}
+\]
+The 16-bit immediate is sign-extended to 32 bits before use.
+
+\subsection{BR Format --- Branch}
+Used by BZ and BNZ.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=0.48cm]
+  \bwfield{32}{BR --- conditional branch}
+  \bwslicen{28}{4}{op}
+  \bwsliceh{24}{4}{0}
+  \bwslicen{20}{4}{rs1}
+  \bwsliceh{16}{4}{0}
+  \bwslicen{0}{16}{offset[15:0]}
+\end{tikzpicture}
+\caption{BR format --- 16-bit word offset (``$\times$4'' at encode time, $\pm$128\,KiB range)}
+\end{figure}
+
+\[
+\texttt{instruction[31:0]} = \{ \texttt{op[3:0]}, 4\textrm{\textquoteright}b0, \texttt{rs1[3:0]}, 4\textrm{\textquoteright}b0, \texttt{offset[15:0]} \}
+\]
+The branch offset is encoded in \textbf{words} (multiplied by 4 at encode time).
+At execution, the target address is:
+\[
+\texttt{PC} = \texttt{insn\_pc} + 4 + \texttt{sign\_extend(offset[15:0])}
+\]
+Branch offsets are therefore $\pm$128\,KiB from the instruction.
+
+\subsection{JMP Format --- Unconditional Jump / Call}
+Used by JMP and CALL.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=0.48cm]
+  \bwfield{32}{JMP / CALL --- unconditional}
+  \bwslicen{28}{4}{op}
+  \bwsliceh{20}{8}{0}
+  \bwslicen{0}{20}{offset[19:0]}
+\end{tikzpicture}
+\caption{JMP/CALL format --- 20-bit word offset (``$\times$4'' at encode time, $\pm$4\,MiB range)}
+\end{figure}
+
+\[
+\texttt{instruction[31:0]} = \{ \texttt{op[3:0]}, 8\textrm{\textquoteright}b0, \texttt{offset[19:0]} \}
+\]
+The jump offset is in words ($\times$4). Target address:
+\[
+\texttt{PC} = \texttt{insn\_pc} + 4 + \texttt{sign\_extend(offset[19:0])}
+\]
+Jump range is $\pm$4\,MiB.
+
+\subsection{RET --- Return}
+Fixed encoding:
+\[
+\texttt{RET} = 32\textrm{\textquoteright}h\texttt{F0000000}
+\]
+Branches to the address in {\tt r14 (lr)}. Does not modify {\tt lr}.
+
+\newpage
+
+\section{Instruction Set}
+
+\begin{table}[H]
+\centering
+\caption{Complete BradISA V1 instruction set}
+\begin{tabular}{cllc}
+\toprule
+Opcode & Mnemonic & Format & Operation \\
+\midrule
+0x0 & ADD  & RRR & rd = rs1 + rs2 \\
+0x1 & SUB  & RRR & rd = rs1 - rs2 \\
+0x2 & MUL  & RRR & rd = rs1 $\times$ rs2 (low 32 bits) \\
+0x3 & AND  & RRR & rd = rs1 \& rs2 \\
+0x4 & OR   & RRR & rd = rs1 | rs2 \\
+0x5 & XOR  & RRR & rd = rs1 \^{} rs2 \\
+0x6 & SHL  & RRR & rd = rs1 $<<$ rs2[4:0] \\
+0x7 & SHR  & RRR & rd = rs1 $>>$ rs2[4:0] (logical) \\
+\midrule
+0x8 & ADDI & RI  & rd = rs1 + sext(imm16) \\
+0x9 & LDW  & RI  & rd = mem[rs1 + sext(imm16)] \\
+0xA & STW  & RI  & mem[rs1 + sext(imm16)] = rs2 \\
+\midrule
+0xB & BZ   & BR  & if (rs1 == 0) PC = insn\_pc + 4 + sext(offset$\times$4) \\
+0xC & BNZ  & BR  & if (rs1 != 0) PC = insn\_pc + 4 + sext(offset$\times$4) \\
+0xD & JMP  & JMP & PC = insn\_pc + 4 + sext(offset$\times$4) \\
+0xE & CALL & JMP & lr = insn\_pc + 4; PC = target \\
+0xF & RET  & --- & PC = lr \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{ALU Operations}
+All ALU operations (opcodes 0x0--0x7) use the RRR format. The second source
+operand is a register ({\tt rs2}), not an immediate. {\tt MUL} produces the
+low 32 bits of the product. {\tt SHL} and {\tt SHR} use only the bottom 5 bits
+of {\tt rs2} as the shift amount (0--31).
+
+\subsection{Memory Operations}
+{\tt LDW} loads a 32-bit word from byte address {\tt rs1 + sext(imm16)} into
+{\tt rd}.  {\tt STW} stores the value of {\tt rs2} to the same effective
+address.  Addresses must be 4-byte aligned; an unaligned access raises an
+exception.
+
+\subsection{Conditional Branches}
+{\tt BZ} and {\tt BNZ} test {\tt rs1} against zero. The branch offset is a
+16-bit signed word offset ($\times$4) with a range of $\pm$128\,KiB. The
+branch target PC-relative computation uses the address of the instruction
+itself, not the next instruction:
+\[
+\texttt{target} = \texttt{insn\_pc} + 4 + (\texttt{offset} \times 4)
+\]
+
+\subsection{Call / Return}
+{\tt CALL} saves the return address ({\tt insn\_pc + 4}) into the link register
+{\tt r14 (lr)} and then jumps to the target. {\tt RET} jumps unconditionally
+to {\tt lr}, providing a simple leaf-function call/return mechanism.
+
+\newpage
+
+\section{Instruction Encoding Diagrams}
+
+\subsection{RRR Format (ALU)}
+\begin{lstlisting}[style=Cstyle]
+  31  28 27  24 23  20 19  16 15                             0
++------+------+------+------+--------------------------------+
+| op   | rd   | rs1  | rs2  |         0 (unused)             |
++------+------+------+------+--------------------------------+
+\end{lstlisting}
+
+\subsection{RI Format (ADDI, LDW, STW)}
+\begin{lstlisting}[style=Cstyle]
+  31  28 27  24 23  20 19  16 15                             0
++------+------+------+------+--------------------------------+
+| op   | rd   | rs1  |      |      signed immediate          |
++------+------+------+------+--------------------------------+
+\end{lstlisting}
+Note: STW ignores {\tt rd} (uses {\tt rs2} as store data).
+
+\subsection{BR Format (BZ, BNZ)}
+\begin{lstlisting}[style=Cstyle]
+  31  28 27  24 23  20 19  16 15                             0
++------+------+------+------+--------------------------------+
+| op   | 0000 | rs1  | 0000 |    word offset (x4)            |
++------+------+------+------+--------------------------------+
+\end{lstlisting}
+
+\subsection{JMP Format (JMP, CALL)}
+\begin{lstlisting}[style=Cstyle]
+  31  28 27  24 23  20 19                                    0
++------+------+------+----------------------------------------+
+| op   | 0000 | 0000 |         word offset (x4)               |
++------+------+------+----------------------------------------+
+\end{lstlisting}
+
+\subsection{RET}
+\begin{lstlisting}[style=Cstyle]
+  31                                                          0
++--------------------------------------------------------------+
+|                       0xF0000000                             |
++--------------------------------------------------------------+
+\end{lstlisting}
+
+\newpage
+
+\section{Exception and Interrupt Model}
+
+BradISA V1 supports a vectored exception model with a fixed vector table at
+the base of the address space.
+
+\begin{table}[H]
+\centering
+\caption{Exception vector addresses}
+\begin{tabular}{cll}
+\toprule
+Vector address & Exception       & Cause code \\
+\midrule
+0x00000000 & Reset / cold boot        & ---  \\
+0x00000004 & Undefined instruction    & 1    \\
+0x00000008 & Page fault               & 2    \\
+0x0000000C & Unaligned access         & 3    \\
+0x00000010 & Privilege violation      & 4    \\
+0x00000014 & System call (ECALL)      & 5    \\
+0x00000018 & Timer interrupt          & 6    \\
+0x00000020 & External IRQ 0           & 7    \\
+0x00000024 & External IRQ 1           & 7    \\
+0x00000028 & External IRQ 2           & 7    \\
+0x0000002C & External IRQ 3           & 7    \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Machine Status Registers}
+\begin{table}[H]
+\centering
+\caption{MSR index map}
+\begin{tabular}{cll}
+\toprule
+Index & Mnemonic  & Description \\
+\midrule
+0     & STATUS    & Processor status flags \\
+1     & CAUSE     & Cause of last exception \\
+2     & EPC       & Exception program counter \\
+3     & EAR       & Exception address register \\
+4     & PAGE\_BASE & Page table base address \\
+5     & TICK      & Cycle count timer \\
+6     & CORE\_ID  & Core identifier \\
+7     & CLUSTER\_ID & Cluster identifier \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Status Register Flags}
+\begin{table}[H]
+\centering
+\begin{tabular}{cll}
+\toprule
+Bit & Flag   & Description \\
+\midrule
+0   & IE     & Interrupt enable \\
+1   & SVC    & Supervisor mode \\
+2   & HALTED & Core halted \\
+3   & WFE    & Wait for event \\
+8   & EXC\_PEND & Exception pending \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\newpage
+
+\section{Performance Characteristics}
+
+\subsection{IPC Estimates}
+\begin{itemize}[nosep]
+  \item \textbf{Phoenix (10-stage OoO):} 2.2 IPC typical, 5.0 IPC peak
+  \item \textbf{Falcon (5-stage in-order):} 0.9 IPC typical, 1.0 IPC peak
+\end{itemize}
+
+\subsection{Dhrystone Estimates}
+\begin{itemize}[nosep]
+  \item \textbf{Phoenix:} $\sim$5.5 DMIPS/MHz
+  \item At 5.2\,GHz: $\sim$28,600 DMIPS
+  \item \textbf{Falcon:} $\sim$2.2 DMIPS/MHz
+  \item At 3.6\,GHz: $\sim$7,920 DMIPS
+\end{itemize}
+
+\subsection{Pipeline Stage Descriptions}
+
+\subsubsection*{Phoenix (10-stage)}
+\begin{enumerate}[nosep]
+  \item \textbf{Fetch1} --- Instruction TLB access, next-PC selection
+  \item \textbf{Fetch2} --- Instruction cache read
+  \item \textbf{Decode} --- Instruction decode, register rename
+  \item \textbf{Rename} --- Register map read, free-list access
+  \item \textbf{Dispatch} --- Insert into issue queue / ROB
+  \item \textbf{Issue} --- Wakeup, select, read physical register file
+  \item \textbf{Execute} --- ALU / AGU / branch resolution
+  \item \textbf{Memory} --- Data cache access (load/store)
+  \item \textbf{Writeback} --- Result write to physical register file
+  \item \textbf{Commit} --- Retire from ROB, update architectural state
+\end{enumerate}
+
+\subsubsection*{Falcon (5-stage)}
+\begin{enumerate}[nosep]
+  \item \textbf{Fetch1} --- Instruction fetch, PC increment
+  \item \textbf{Fetch2} --- Instruction cache / memory read
+  \item \textbf{Decode} --- Instruction decode, register file read
+  \item \textbf{Execute} --- ALU / AGU / branch resolution, writeback
+  \item \textbf{Writeback} --- Register file write
+\end{enumerate}
+
+\subsection{Vector Extension (VSET)}
+
+BradISA V1 has no floating-point or SIMD facility; both are provided by the
+BradISA V2 Vector Extension (VSET), specified in the companion document
+\textbf{BradISA V2 Extensions}. VSET adds 32 $\times$ 256-bit vector
+registers ({\tt v0}--{\tt v31}), elementwise integer/FP operations, vector
+memory, reductions, and converts, encoded under primary opcode {\tt 0xF}
+with {\tt 0xF0000000} retained as {\tt RET} for backward compatibility.
+Enable via MSR~23 (VSTATUS.VE).
+
+\newpage
+
+\section*{Revision History}
+\begin{tabular}{lll}
+\toprule
+Revision & Date & Changes \\
+\midrule
+1.0 & July 2026 & Initial specification --- Kinetic Gen1 \\
+1.1 & July 2026 & Phoenix upgraded to octa-issue OoO (ROB 128), IPC 2.2/5.0, \\
+    &           & DMIPS/MHz 5.5; Falcon DMIPS/MHz aligned to 2.2 \\
+1.2 & July 2026 & Cross-reference BradISA V2 Vector Extension (VSET), \\
+    &           & opcode {\tt 0xF}, VSTATUS MSR 23 \\
+\bottomrule
+\end{tabular}
+
+\end{document}

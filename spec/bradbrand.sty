@@ -1,0 +1,124 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{bradbrand}[2026/08/12 Brad Devices branding]
+
+\RequirePackage{xcolor}
+\definecolor{bradblack}{HTML}{141414}
+\definecolor{bradgold}{HTML}{C9A227}
+\definecolor{bradgoldlight}{HTML}{E8D48F}
+\definecolor{bradgolddark}{HTML}{8A6D1F}
+\definecolor{bradlink}{HTML}{8A7320}
+\definecolor{bradgray}{HTML}{555555}
+\definecolor{bradgraylight}{HTML}{EDEBE5}
+
+\RequirePackage{graphicx}
+\RequirePackage{fancyhdr}
+\RequirePackage{lastpage}
+\RequirePackage[protrusion=true,expansion=false]{microtype}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=bradlink,
+  urlcolor=bradlink,
+  citecolor=bradlink,
+  pdfauthor={Brad Devices},
+  pdfsubject={Brad Devices --- Built in Africa, for the World. Confidential.},
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\raisebox{-0.32cm}{\includegraphics[height=0.62cm]{brad_wordmark.pdf}}}
+\fancyhead[R]{\small\color{bradgray}\MakeUppercase{\braddoctitle}}
+\renewcommand{\headrulewidth}{1pt}
+\renewcommand{\headrule}{\color{bradgolddark}\hrule width\headwidth height\headrulewidth}
+\fancyfoot[L]{\small\color{bradgray}Built in Africa, for the World}
+\fancyfoot[C]{\small\color{bradgray}Confidential --- Proprietary}
+\fancyfoot[R]{\small\color{bradgray}Page \thepage\ of \pageref{LastPage}}
+
+% ═══════════════════════════════════════════════════════════════════
+%  Brad Devices TikZ visual language — shared by every spec diagram
+%  Professional line-art: white panels, gold accents, charcoal rules.
+% ═══════════════════════════════════════════════════════════════════
+\RequirePackage{tikz}
+\RequirePackage{helvet}
+\usetikzlibrary{arrows.meta, positioning, calc, fit, backgrounds}
+
+\tikzset{
+  % diagram-wide defaults
+  every picture/.style={font=\sffamily\footnotesize, braddraw},
+  braddraw/.style={line width=1pt, draw=bradblack},
+  %
+  % generic panel
+  bpan/.style={draw=bradblack, line width=1pt, rounded corners=3pt,
+               fill=white, align=center, inner sep=6pt},
+  bpanh/.style={draw=bradblack, line width=1pt, rounded corners=3pt,
+                fill=bradgoldlight!35, align=center, inner sep=6pt},
+  %
+  % pipeline stage panel (full text width, left aligned, gold title)
+  pstage/.style={draw=bradblack, line width=1pt, rounded corners=4pt,
+                 fill=white, text width=15.2cm, align=left, inner sep=8pt},
+  ptitle/.style={font=\sffamily\bfseries\small, color=bradgolddark},
+  pitem/.style={font=\sffamily\footnotesize, color=bradblack},
+  %
+  % flow arrows
+  bflow/.style={-{Stealth[length=2.8mm,width=2.2mm]}, line width=1.2pt,
+                color=bradblack!75},
+  bflowt/.style={-{Stealth[length=2.2mm,width=1.8mm]}, line width=0.9pt,
+                 color=bradblack!55},
+  %
+  % memory map bands
+  mband/.style={draw=bradblack, line width=0.8pt, fill=bradgoldlight!30,
+                align=center, inner sep=2pt, minimum height=0.42cm},
+  mbandd/.style={draw=bradblack, line width=0.8pt, fill=bradgraylight,
+                 align=center, inner sep=2pt, minimum height=0.42cm},
+  bbit/.style={font=\sffamily\scriptsize, color=bradblack},
+}
+
+% ── 32-bit instruction bitfield, drawn in bit coordinates with x=1bit cm ──
+% Usage:  \begin{tikzpicture}[x=0.48cm]\bwfield{32}...\end{tikzpicture}
+\newcommand{\bwfield}[2]{% #1 total bits, #2 format name (small caps above)
+  \draw[braddraw] (0,0) -- (#1,0);
+  \node[bbit, anchor=south west, font=\sffamily\scriptsize] at (0,0.04) {bit #1};
+  \node[bbit, anchor=south east, font=\sffamily\scriptsize] at (#1,0.04) {bit 0};
+  \ifx&#2&\else
+    \node[bbit, anchor=base, font=\sffamily\bfseries\scriptsize,
+          color=bradgolddark] at (#1/2, 0.35) {#2};
+  \fi
+}
+\newcommand{\bwslicen}[3]{% #1 start bit, #2 width bits, #3 field label
+  \fill[bradgoldlight!30] (#1,0) rectangle +(#2,-0.72);
+  \draw[braddraw] (#1,0) rectangle +(#2,-0.72);
+  \node[font=\sffamily\scriptsize] at (#1+#2/2, -0.36) {\ttfamily #3};
+  \node[bbit, font=\sffamily\scriptsize, anchor=south] at (#1+#2/2, -0.05)
+       {\scriptsize\ttfamily #1:\the\numexpr#1-#2+1\relax};
+}
+\newcommand{\bwsliceh}[3]{% same, neutral fill for reserved/zero slices
+  \fill[bradgraylight] (#1,0) rectangle +(#2,-0.72);
+  \draw[braddraw] (#1,0) rectangle +(#2,-0.72);
+  \node[font=\sffamily\scriptsize] at (#1+#2/2, -0.36) {\ttfamily #3};
+  \node[bbit, font=\sffamily\scriptsize, anchor=south] at (#1+#2/2, -0.05)
+       {\scriptsize\ttfamily #1:\the\numexpr#1-#2+1\relax};
+}
+
+\newcommand{\braddoctitle}{Brad Devices}
+
+\newcommand{\bradtitlepage}[4]{%
+  \thispagestyle{empty}%
+  \renewcommand{\braddoctitle}{#1}%
+  \begin{center}%
+    {\includegraphics[height=1.85cm]{brad_icon_gold.pdf}}\\[7pt]%
+    {\includegraphics[height=0.98cm]{brad_wordmark.pdf}}\\[9pt]%
+    {\large\itshape\color{bradgold}Built in Africa, for the World}\\[9pt]%
+    {\color{bradgold}\rule{0.42\textwidth}{1.1pt}}%
+  \end{center}%
+  \vspace*{2.4cm}%
+  \begin{center}%
+    {\LARGE\bfseries #2}\\[12pt]%
+    {\large #3}%
+  \end{center}%
+  \vfill%
+  \begin{center}%
+    {\normalsize\color{bradgray}#4}\\[6pt]%
+    {\small\color{bradgray}Confidential --- Brad Devices Proprietary}%
+  \end{center}%
+  \newpage%
+}
