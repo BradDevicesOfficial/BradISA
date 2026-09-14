@@ -34,7 +34,22 @@ spec/                  normative ISA sources and built PDFs
   bradisa_v2_ext.tex     V2 — compressed, VSET vector, power management
   *.pdf                  pre-built spec documents (11 pp V1, 16 pp V2)
 
-docs/                  architecture guides and references
+docs/                  the full documentation tree
+  00-index.md                   documentation index and reading order
+  01-quickstart.md              build the toolchain, first program
+  02-data-model.md              words, bytes, address space, alignment
+  03-instruction-formats.md     RRR / RI / BR / JMP / RET encodings
+  04-base-isa.md                complete V1 opcode reference (16 instructions)
+  05-abi.md                     calling convention, register map, stack
+  06-exceptions.md              vector table, cause codes, trap flow
+  07-msr-reference.md           every model-specific register (V1 + V2)
+  08-vector.md                  VSET vector extension — full reference
+  09-compressed.md              16-bit compressed instruction encoding
+  10-power.md                   C-states, DVFS, clock-gating, perf counters
+  11-toolchain.md               bradc, BVRT, bradgdb, braddev, BradTimeline
+  12-fpga.md                    Falcon RTL: pipeline, hazards, builds
+  13-gen2.md                    SVEXT and future extensions (VISION)
+  GLOSSARY.md                   every term, one line each
   ARCHITECTURE_GUIDE.md         developer-facing programming guide
   ARCHITECTURE_REFERENCE_MODEL.md   authoritative architecture model
   ISA_QUICK_REFERENCE.md        compact one-page reference card
@@ -52,7 +67,7 @@ BradISA V1 is a **32-bit fixed-width RISC ISA**:
 
 - 16 general-purpose 32-bit registers (r0 = hardwired zero)
 - 16 base opcodes; three primary instruction formats (RRR, RI, BR, JMP, RET)
-- Two privilege levels (Machine, Supervisor); vectored exception model
+- Two privilege levels (User, Supervisor); vectored exception model
 - Vector extension (VSET) — 32 × 256-bit fixed-length SIMD, all FP lives here
 
 The full architectural model (`ARCHITECTURE_REFERENCE_MODEL.md`) is the
@@ -77,6 +92,7 @@ See `rtl/README.md` for build and simulation instructions.
 
 ## Links
 
+- **Documentation:** [docs/00-index.md](docs/00-index.md) — the full reference tree
 - **Live specs:** [BradISA V1](https://brad-devices.vercel.app/assets/specs/bradisa_spec.pdf) · [BradISA V2](https://brad-devices.vercel.app/assets/specs/bradisa_v2_ext.pdf)
 - **Site:** [brad-devices.vercel.app](https://brad-devices.vercel.app)
 - **Contact:** brad.devices.official@gmail.com
