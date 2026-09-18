@@ -29,7 +29,6 @@ rtl/
     tb_brad_core.v      testbench (counts 1..100 in a loop)
     falcon_lite_core.v  Falcon-Lite (V2, 3-stage) reference
     kestrel_core.v      Kestrel (V2, 8-stage) reference
-    bradvector_core.v   Torox BradVector GPU engine (V2 reference)
   vhdl/
     bradisa_pkg.vhd     VHDL package
     brad_regfile.vhd    register file
@@ -206,9 +205,10 @@ The `rtl/` tree also ships reference implementations for the other BradISA cores
 |---|---|---|---|
 | `falcon_lite_core.v` | Falcon-Lite | 3-stage | smallest core; r0–r7 only, no MUL |
 | `kestrel_core.v` | Kestrel | 8-stage | dual-issue in-order, BTFNT |
-| `bradvector_core.v` | Torox GPU | — | BradVector SIMT engine (GPU side) |
 
 These are released as ISA-referencing references; the fully tuned production cores ship with Brad Silicon.
+
+The GPU-side engine (`bradvector_core.v`) is **not** part of this CPU ISA repository — it lives in the separate **BradVector** repository, which documents the GPU/accelerator ISA.
 
 ## Common integration notes
 

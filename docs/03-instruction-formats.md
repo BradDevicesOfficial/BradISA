@@ -84,14 +84,14 @@ No flags are set by ALU operations. Branch conditions test the register value di
 Used by: `JMP`
 
 ```
- 31  28 27                                16 15               0
-+------+------------------------------------+------------------+
-| OPCODE| 00000000                           | OFFSET20 (×4)    |
-| [4]   | [24]                               | [20]             |
-+------+------------------------------------+------------------+
+ 31  28 27                      20 19                0
++------+-------------------------+-------------------+
+| OPCODE| 00000000                | OFFSET20 (×4)     |
+| [4]   | [8]                     | [20]              |
++------+-------------------------+-------------------+
 ```
 
-Field widths (bits): `OPCODE` 4 · reserved 24 · `OFFSET20` 20
+Field widths (bits): `OPCODE` 4 · reserved 8 · `OFFSET20` 20
 
 **Operation:**
 
@@ -129,7 +129,7 @@ RET occupies opcode `0xF`. When the vector extension (VSET) is present, opcode `
 | RRR | `OPCODE RD RS1 RS2 0000…` | 4 + 4 + 4 + 4 + 16 | none | register only |
 | RI | `OPCODE RD RS1 IMM16` | 4 + 4 + 4 + 16 | 16-bit signed | ±32 K (addr) |
 | BR | `OPCODE 0 RS1 0 OFFSET16` | 4 + 4 + 4 + 4 + 16 | 16-bit ×4 signed | ±128 KiB |
-| JMP | `OPCODE 0000… OFFSET20` | 4 + 24 + 20 | 20-bit ×4 signed | ±4 MiB |
+| JMP | `OPCODE 0…0 OFFSET20` | 4 + 8 + 20 | 20-bit ×4 signed | ±4 MiB |
 | RET | `0xF0000000` | fixed | — | — |
 
 ## Alignment and PC-relative addressing

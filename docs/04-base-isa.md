@@ -260,7 +260,7 @@ loop:
 | | |
 |---|---|
 | **Format** | JMP |
-| **Encoding** | `OPCODE[31:28]=0xD  00000000[27:4]  OFFSET20[3:0]  OFFSET20[19:4]` — see note |
+| **Encoding** | `OPCODE[31:28]=0xD  00000000[27:20]  OFFSET20[19:0]` |
 | **Operation** | `PC ← PC + 4 + sext(OFFSET20) × 4` |
 | **Flags** | none |
 | **Cycles (Falcon)** | 1 (always +2 flush) |

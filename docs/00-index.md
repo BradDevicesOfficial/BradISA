@@ -9,9 +9,16 @@ spec/
   bradisa_spec.tex          V1 base ISA (normative)
   bradisa_v2_ext.tex        V2 extensions — compressed, Kestrel, Falcon-Lite, VSET, power (normative)
 rtl/
-  bradisa/bradisa_v1.fv     Falcon V1 SystemVerilog
-  bradisa/bradisa_v1.vhdl   VHDL wrapper
-  bradisa/fpga/             Artix-7 / Cyclone V targets + constraint files
+  verilog/                  Verilog-2001 RTL
+    bradisa_defines.v       opcode and constant package
+    brad_regfile.v          16 × 32-bit register file
+    brad_alu.v              ALU (ADD/SUB/MUL/AND/OR/XOR/SHL/SHR)
+    brad_core.v             Falcon 5-stage top level
+    tb_brad_core.v          testbench (counts 1..100 in a loop)
+    falcon_lite_core.v      Falcon-Lite (3-stage) reference
+    kestrel_core.v          Kestrel (8-stage) reference
+  vhdl/                     VHDL-2008 RTL (same design)
+  fpga/                     Artix-7 / Cyclone V constraints + build scripts
 docs/
   00-index.md               you are here
   01-quickstart.md          build the toolchain, write your first program
@@ -99,7 +106,7 @@ All cores share the same ISA. Binary compatibility is absolute.
 
 - `bradisa_spec.tex` V1.2 — base ISA
 - `bradisa_v2_ext.tex` V2.2 — extensions
-- `rtl/bradisa/bradisa_v1.fv` — Falcon V1 SystemVerilog (golden reference for structural tests)
+- `rtl/verilog/brad_core.v` — Falcon V1 Verilog (golden reference for structural tests)
 - `site/llms.txt` — machine-readable product & architecture summary
 
 ## Licence
