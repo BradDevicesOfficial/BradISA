@@ -83,11 +83,9 @@ Vectored exception table (matching `bradisa_spec.tex`):
 |-----|------|
 | `bradisa_spec.tex` | Base ISA V1 normative spec (encoding, exceptions, pipeline models) |
 | `bradisa_v2_ext.tex` | V2 extensions: compressed, kestrel, VSET, power, branch predictor |
-| `GPU/GPU_ISA.md` | BradVector (Torox G1) SIMT ISA |
-| `Compute/BRADAPEX_ACCELERATOR_SPEC.md` | BA-ISA |
-| `BradISA/ARCHITECTURE_GUIDE.md` | Developer-oriented guide |
-| `Brad Silicon/CPU/BRADCHIP.md` | SoC integration (cores + NPU + memory controller) |
+| `ARCHITECTURE_GUIDE.md` | Developer-oriented guide |
+| BradVector repository | The separate GPU / accelerator SIMT ISA |
 
 ---
 
-*Normative sources: `src/spec/bradisa_spec.tex`, `src/spec/bradisa_v2_ext.tex`. This ARM is a companion model, not a replacement spec.*
+*Normative sources: `spec/bradisa_spec.tex`, `spec/bradisa_v2_ext.tex`. This ARM is a companion model, not a replacement spec.*

@@ -69,16 +69,11 @@ Every term a BradISA reader will meet, one line each.
 
 | Term | Definition |
 |---|---|
-| **bradc** | Assembler; parses `.basm`, emits `.bvbc`. |
-| **.basm** | BradISA assembly source. |
-| **.bvbc** | BradVector ByteCode binary. |
-| **BVRT** | BradVector RunTime: the interpreter (`bradvm`). |
-| **bradgdb** | Interactive debugger: 64 breakpoints, single-step, backtrace. |
-| **braddev** | All-in-one CLI: assemble, run, debug, timeline, test. |
-| **BradTimeline** | 65,536-event circular execution recorder. |
-| **bradlib.h** | Host-facing C API: compile → pack → session → run → inspect. |
-| **bradvector.js** | The WASM bridge exposing bradlib 1:1 in the browser. |
-| **saxpy** | The canonical vector benchmark: y = a·x + y. 10 instructions. |
+| **bradasm** | Reference assembler: source text → instruction words + symbol table + entry point. |
+| **brad_core_emu** | Reference cycle-approximate core / SoC emulator. |
+| **Assembly source** | Plain text consumed by the reference assembler; the ISA does not fix a file extension. |
+| **Compressed encoding** | 16-bit instruction forms, enabled with `.compress`. |
+| **Instruction word** | One 32-bit (or 16-bit compressed) encoded instruction. |
 
 ## Ecosystem
 
@@ -116,7 +111,7 @@ Every term a BradISA reader will meet, one line each.
 | Term | Definition |
 |---|---|
 | **SOLID** | The ISA quality tag: spec + docs + passing tests + RTL. |
-| **SHIPPED** | The toolchain quality tag: assembler, BVRT, debugger, CLI all run today. |
+| **SHIPPED** | The artifact exists and runs today. |
 | **VISION** | Gen2 and beyond: scoped but not promised. |
-| **Golden reference** | The BVRT interpreter is the software oracle; the RTL must match it. |
-| **Round-trip test** | Validate that `bradc` disassembly reproduces the source — encoding correctness. |
+| **Golden reference** | The normative spec; structural tests compare the RTL against it. |
+| **Round-trip test** | Assemble then decode and compare — encoding correctness. |

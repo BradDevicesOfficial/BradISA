@@ -103,4 +103,4 @@ BradISA V1 is integer-only. VSET introduces 32-bit single-precision and 64-bit d
 
 ## Byte ordering for multi-word vectors
 
-VSET vector registers are stored in little-endian order within the register file. Vector element `v[i]` at byte offset `i*SEW_bytes` maps to the least-significant bits of the 256-bit vector. The BVRT runtime and `bradc` both enforce this layout.
+VSET vector registers are stored in little-endian order within the register file. Vector element `v[i]` at byte offset `i*SEW_bytes` maps to the least-significant bits of the 256-bit vector. The reference emulator (`brad_core_emu`) enforces this layout.

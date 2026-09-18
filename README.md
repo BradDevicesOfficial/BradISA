@@ -17,13 +17,12 @@
 
 # BradISA
 
-The Brad Devices instruction set architecture — the shared software contract behind every BradCore processor and every Torox GPU kernel.
+The Brad Devices CPU instruction set architecture — the shared software contract behind every BradCore processor.
 
 ```text
 This is not a reference to some future silicon.
-It is the spec that the silicon is built from,
-the toolchain that runs before the silicon exists,
-and the core that proves it fits on real fabric.
+It is the spec the silicon is built from,
+and the reference core that proves it fits on real fabric.
 ```
 
 ## What this repo contains
@@ -36,7 +35,7 @@ spec/                  normative ISA sources and built PDFs
 
 docs/                  the full documentation tree
   00-index.md                   documentation index and reading order
-  01-quickstart.md              build the toolchain, first program
+  01-quickstart.md              orientation, first program, how to simulate
   02-data-model.md              words, bytes, address space, alignment
   03-instruction-formats.md     RRR / RI / BR / JMP / RET encodings
   04-base-isa.md                complete V1 opcode reference (16 instructions)
@@ -46,14 +45,14 @@ docs/                  the full documentation tree
   08-vector.md                  VSET vector extension — full reference
   09-compressed.md              16-bit compressed instruction encoding
   10-power.md                   C-states, DVFS, clock-gating, perf counters
-  11-toolchain.md               bradc, BVRT, bradgdb, braddev, BradTimeline
+  11-toolchain.md               reference assembler (bradasm) + emulator (brad_core_emu)
   12-fpga.md                    Falcon RTL: pipeline, hazards, builds
   13-gen2.md                    SVEXT and future extensions (VISION)
   GLOSSARY.md                   every term, one line each
   ARCHITECTURE_GUIDE.md         developer-facing programming guide
   ARCHITECTURE_REFERENCE_MODEL.md   authoritative architecture model
   ISA_QUICK_REFERENCE.md        compact one-page reference card
-  TOOLCHAIN_GUIDE.md            shipped toolchain overview and usage
+  TOOLCHAIN_GUIDE.md            repo scope and pointers to reference implementations
 
 rtl/                   synthesisable Falcon V1 core
   verilog/               Verilog 2001 RTL

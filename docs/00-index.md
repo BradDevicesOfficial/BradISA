@@ -21,7 +21,7 @@ rtl/
   fpga/                     Artix-7 / Cyclone V constraints + build scripts
 docs/
   00-index.md               you are here
-  01-quickstart.md          build the toolchain, write your first program
+  01-quickstart.md          orientation, first program, how to simulate
   02-data-model.md          words, bytes, address space, alignment, endianness
   03-instruction-formats.md five encoding families (RRR / RI / BR / JMP / RET)
   04-base-isa.md            complete V1 opcode reference — 16 instructions
@@ -31,7 +31,7 @@ docs/
   08-vector.md              VSET extension — full programmer's reference
   09-compressed.md          16-bit compressed instruction encoding
   10-power.md               power management — C-states, DVFS, perf counters
-  11-toolchain.md           bradc, BVRT, bradgdb, braddev, BradTimeline, bradlib
+  11-toolchain.md           reference assembler (bradasm) and emulator (brad_core_emu)
   12-fpga.md                Falcon V1 RTL: pipeline, hazard model, synthesis
   13-gen2.md                SVEXT and future extensions
   GLOSSARY.md               every term, one line each
@@ -65,7 +65,7 @@ In case of conflict, the LaTeX source takes precedence over these markdown docum
 
 New to BradISA? Start here:
 
-1. [Quick-start](01-quickstart.md) — build the toolchain and run a first program
+1. [Quick-start](01-quickstart.md) — orientation and a first program
 2. [Data model](02-data-model.md) — how memory and data are organised
 3. [Base ISA](04-base-isa.md) — the 16 instructions, one by one
 4. [ABI](05-abi.md) — calling convention and register roles
@@ -88,7 +88,7 @@ The following long-form documents in `docs/` are also part of this release and c
 - `ARCHITECTURE_GUIDE.md` — Brad ISA architecture guide for developers (extended V1 + compressed + VSET)
 - `ARCHITECTURE_REFERENCE_MODEL.md` — full ARM-style architecture reference model
 - `ISA_QUICK_REFERENCE.md` — one-page V1 + V2 instruction summary
-- `TOOLCHAIN_GUIDE.md` — developer-facing toolchain reference
+- `TOOLCHAIN_GUIDE.md` — scope of this repo and pointers to the reference implementations
 
 ## Targets
 
@@ -107,7 +107,6 @@ All cores share the same ISA. Binary compatibility is absolute.
 - `bradisa_spec.tex` V1.2 — base ISA
 - `bradisa_v2_ext.tex` V2.2 — extensions
 - `rtl/verilog/brad_core.v` — Falcon V1 Verilog (golden reference for structural tests)
-- `site/llms.txt` — machine-readable product & architecture summary
 
 ## Licence
 

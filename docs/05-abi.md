@@ -232,7 +232,7 @@ On `RFE`, the handler writes `EPC` to `r15` (or uses a dedicated `RFE` instructi
 
 ## System call convention
 
-System calls (syscall number in `r0`, arguments in `r1`–`r3`) are used by `bradlib` for OS services. The syscall number table is defined in `bradlib.h`:
+System calls enter the OS through the trap mechanism (see [Exceptions](06-exceptions.md)). The convention below — syscall number in `r0`, arguments in `r1`–`r3` — is illustrative; the definitive table is defined by the operating system, not by the ISA:
 
 | r0 | Service |
 |---|---|

@@ -303,7 +303,7 @@ Debug control register.
 | 2 | trace enable |
 | [7:4] | trace mode select |
 
-Used by `bradgdb` for interactive debugging. Write `0x03` to enable breakpoints and single-stepping; the processor halts on the next breakpoint hit or after each instruction.
+Used by the reference emulator for interactive debugging. Write `0x03` to enable breakpoints and single-stepping; the core halts on the next breakpoint hit or after each instruction.
 
 ---
 

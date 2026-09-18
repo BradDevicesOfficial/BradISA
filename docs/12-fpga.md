@@ -187,15 +187,15 @@ Add the RTL sources and the testbench, then run behavioural simulation.
 
 ## Verifying against the ISA
 
-Pair the RTL with `bradc` for golden-reference testing:
+Pair the RTL with the reference emulator (`brad_core_emu`) for golden-reference testing:
 
-1. Write a `.basm` program (e.g. the saxpy kernel)
-2. Assemble with `bradc` → `.bvbc`
-3. Load the bytecode as instruction memory in the testbench
-4. Run the BVRT interpreter on the same program
-5. Compare register and memory state after each step
+1. Write a BradISA assembly program.
+2. Assemble it with the reference assembler (`bradasm`) into instruction words.
+3. Load the instruction words as instruction memory in the testbench.
+4. Run the reference emulator on the same program.
+5. Compare register and memory state after each step.
 
-The BVRT interpreter is the software golden reference; the RTL must match it instruction-for-instruction. Round-trip differences indicate a decode, ALU, or hazard bug.
+The normative spec is the golden reference; structural tests check that the RTL matches it instruction-for-instruction. Differences indicate a decode, ALU, or hazard bug.
 
 ## V2 reference cores
 
