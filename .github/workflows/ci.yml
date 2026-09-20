@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verilog:
+    name: Verilog (Icarus)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install iverilog
+        run: sudo apt-get update && sudo apt-get install -y iverilog
+      - name: Compile + simulate tb_brad_core
+        run: |
+          cd rtl/verilog
+          iverilog -g2012 -s tb_brad_core -o tb.out tb_brad_core.v brad_core.v \
+            brad_alu.v brad_bp.v brad_decode.v brad_execute.v brad_fetch.v \
+            brad_regfile.v brad_writeback.v bradisa_defines.v \
+            falcon_lite_core.v kestrel_core.v
+          out=$(vvp tb.out)
+          printf '%s\n' "$out"
+          grep -q '^PASS$' <<< "$out" || { echo "tb did not report PASS"; exit 1; }
+
+  vhdl:
+    name: VHDL (GHDL)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ghdl
+        run: sudo apt-get update && sudo apt-get install -y ghdl
+      - name: Analyze, elaborate, simulate tb_brad_core
+        run: |
+          cd rtl/vhdl
+          ghdl -a bradisa_pkg.vhd brad_regfile.vhd brad_alu.vhd \
+            brad_core.vhd falcon_lite_core.vhd kestrel_core.vhd tb_brad_core.vhd
+          ghdl -e tb_brad_core
+          ghdl -r tb_brad_core --assert-level=warning

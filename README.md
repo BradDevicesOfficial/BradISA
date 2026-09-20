@@ -15,6 +15,8 @@
   </picture>
 </p>
 
+[![CI](https://github.com/BradDevicesOfficial/BradISA/actions/workflows/ci.yml/badge.svg)](https://github.com/BradDevicesOfficial/BradISA/actions/workflows/ci.yml)
+
 # BradISA
 
 The Brad Devices CPU instruction set architecture — the shared software contract behind every BradCore processor.
