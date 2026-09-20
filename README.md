@@ -17,6 +17,15 @@
 
 [![CI](https://github.com/BradDevicesOfficial/BradISA/actions/workflows/ci.yml/badge.svg)](https://github.com/BradDevicesOfficial/BradISA/actions/workflows/ci.yml)
 
+<p align="center">
+  <img alt="C" src="https://img.shields.io/badge/C-8A6D1F?style=for-the-badge">&nbsp;
+  <img alt="Verilog" src="https://img.shields.io/badge/Verilog-8A6D1F?style=for-the-badge">&nbsp;
+  <img alt="VHDL" src="https://img.shields.io/badge/VHDL-8A6D1F?style=for-the-badge">&nbsp;
+  <img alt="Assembly" src="https://img.shields.io/badge/Assembly-8A6D1F?style=for-the-badge">&nbsp;
+  <img alt="Linux" src="https://img.shields.io/badge/Linux-8A6D1F?style=for-the-badge">&nbsp;
+  <img alt="LaTeX" src="https://img.shields.io/badge/LaTeX-8A6D1F?style=for-the-badge">
+</p>
+
 # BradISA
 
 The Brad Devices CPU instruction set architecture — the shared software contract behind every BradCore processor.
