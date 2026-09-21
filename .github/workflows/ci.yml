@@ -34,7 +34,7 @@ jobs:
       - name: Analyze, elaborate, simulate tb_brad_core
         run: |
           cd rtl/vhdl
-          ghdl -a bradisa_pkg.vhd brad_regfile.vhd brad_alu.vhd \
+          ghdl -a --std=08 bradisa_pkg.vhd brad_regfile.vhd brad_alu.vhd \
             brad_core.vhd falcon_lite_core.vhd kestrel_core.vhd tb_brad_core.vhd
-          ghdl -e tb_brad_core
-          ghdl -r tb_brad_core --assert-level=warning
+          ghdl -e --std=08 tb_brad_core
+          ghdl -r --std=08 tb_brad_core --assert-level=warning
