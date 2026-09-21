@@ -148,11 +148,11 @@ begin
 
     -- ─── Branch resolution ───────────────────────────────────
     branch_taken <= d_valid and (
-        ('1' when d_opcode = OP_BZ  and d_rs1_val = x"00000000" else '0') or
-        ('1' when d_opcode = OP_BNZ and d_rs1_val /= x"00000000" else '0') or
-        ('1' when d_opcode = OP_JMP  else '0') or
-        ('1' when d_opcode = OP_CALL else '0') or
-        ('1' when d_opcode = OP_RET  else '0'));
+        ('1' when (d_opcode = OP_BZ)  and (d_rs1_val = x"00000000") else '0') or
+        ('1' when (d_opcode = OP_BNZ) and (d_rs1_val /= x"00000000") else '0') or
+        ('1' when (d_opcode = OP_JMP)  else '0') or
+        ('1' when (d_opcode = OP_CALL) else '0') or
+        ('1' when (d_opcode = OP_RET)  else '0'));
     next_pc <= d_rs1_val when d_opcode = OP_RET else
                std_logic_vector(unsigned(d_pc) + 4 + unsigned(d_imm));
 
@@ -196,7 +196,7 @@ begin
             e_addr       <= std_logic_vector(unsigned(d_rs1_val) + unsigned(d_imm));
             e_store_data <= d_rs2_val;
             e_mem_req    <= '1' when (d_opcode = OP_LDW or d_opcode = OP_STW) else '0';
-            e_mem_we     <= '1' when d_opcode = OP_STW else '0';
+    e_mem_we  <= '1' when (d_opcode = OP_STW) else '0';
         end if;
     end process;
 

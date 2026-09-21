@@ -111,9 +111,9 @@ begin
         );
 
     -- ─── Hazard detection ────────────────────────────────────
-    raw_hazard <= '1' when (d_valid = '1' and e_valid = '1' and e_reg_we = '1'
-                            and e_rd /= REG_R0
-                            and (d_rs1 = e_rd or (d_opcode = OP_STW and d_rs2 = e_rd)))
+    raw_hazard <= '1' when (d_valid = '1') and (e_valid = '1') and (e_reg_we = '1')
+                            and (e_rd /= REG_R0)
+                            and ( (d_rs1 = e_rd) or ((d_opcode = OP_STW) and (d_rs2 = e_rd)) )
                    else '0';
     stall <= raw_hazard;
 
@@ -177,8 +177,8 @@ begin
         port map (a => d_rs1_val, b => d_rs2_val, op => d_opcode, result => alu_result);
 
     -- ─── Branch resolution ───────────────────────────────────
-    bz_taken   <= '1' when d_opcode = OP_BZ  and d_rs1_val = x"00000000" else '0';
-    bnz_taken  <= '1' when d_opcode = OP_BNZ and d_rs1_val /= x"00000000" else '0';
+    bz_taken   <= '1' when (d_opcode = OP_BZ)  and (d_rs1_val = x"00000000") else '0';
+    bnz_taken  <= '1' when (d_opcode = OP_BNZ) and (d_rs1_val /= x"00000000") else '0';
     jmp_taken  <= '1' when d_opcode = OP_JMP  else '0';
     call_taken <= '1' when d_opcode = OP_CALL else '0';
     ret_taken  <= '1' when d_opcode = OP_RET  else '0';

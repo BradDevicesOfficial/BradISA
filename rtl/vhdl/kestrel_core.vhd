@@ -360,11 +360,11 @@ begin
     end process;
 
     -- ─── Pairing checks (combinational) ─────────────────────
-    slot0_is_branch <= '1' when d1_opcode = OP_BZ or d1_opcode = OP_BNZ or
-                                 d1_opcode = OP_JMP or d1_opcode = OP_CALL or
-                                 d1_opcode = OP_RET else '0';
-    slot0_is_mem <= '1' when d1_opcode = OP_LDW or d1_opcode = OP_STW else '0';
-    slot1_is_mem <= '1' when raw_s1_op = OP_LDW or raw_s1_op = OP_STW else '0';
+    slot0_is_branch <= '1' when (d1_opcode = OP_BZ)  or (d1_opcode = OP_BNZ) or
+                                 (d1_opcode = OP_JMP) or (d1_opcode = OP_CALL) or
+                                 (d1_opcode = OP_RET) else '0';
+    slot0_is_mem <= '1' when (d1_opcode = OP_LDW) or (d1_opcode = OP_STW) else '0';
+    slot1_is_mem <= '1' when (raw_s1_op = OP_LDW) or (raw_s1_op = OP_STW) else '0';
     raw_s0_to_s1 <= '1' when unsigned(d1_rd) /= 0 and
                             (unsigned(d1_rd) = unsigned(raw_s1_rs1) or
                              unsigned(d1_rd) = unsigned(raw_s1_rs2)) else '0';
