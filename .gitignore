@@ -1,0 +1,5 @@
+rtl/vhdl/*.o
+rtl/vhdl/work-obj*.cf
+rtl/vhdl/e~*.o
+rtl/vhdl/tb_*
+!rtl/vhdl/tb_*.vhd
