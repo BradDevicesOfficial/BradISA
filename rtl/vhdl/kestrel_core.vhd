@@ -124,6 +124,17 @@ architecture rtl of kestrel_core is
     signal stall_d1    : std_logic;
     signal flush       : std_logic;
     signal branch_taken : std_logic;
+    signal bz_taken    : std_logic;
+    signal bnz_taken   : std_logic;
+    signal jmp_taken   : std_logic;
+    signal call_taken  : std_logic;
+    signal ret_taken   : std_logic;
+    signal s0_rd_nz    : std_logic;
+    signal s1_rd_nz    : std_logic;
+    signal btb_tag_eq  : std_logic;
+    signal f2_br_neg   : std_logic;
+    signal f2_is_bzbnz : std_logic;
+    signal ex1_rd_nz   : std_logic;
     signal br_target   : std_logic_vector(31 downto 0);
     signal next_pc     : std_logic_vector(31 downto 0);
 
@@ -220,8 +231,10 @@ begin
         variable s0_writes : std_logic;
         variable s1_writes : std_logic;
     begin
-        s0_writes := wb_s0_reg_we and (unsigned(wb_s0_rd) /= 0);
-        s1_writes := wb_s1_reg_we and (unsigned(wb_s1_rd) /= 0);
+        s0_rd_nz   <= '1' when (unsigned(wb_s0_rd) /= 0) else '0';
+        s0_writes := wb_s0_reg_we and s0_rd_nz;
+        s1_rd_nz   <= '1' when (unsigned(wb_s1_rd) /= 0) else '0';
+        s1_writes := wb_s1_reg_we and s1_rd_nz;
 
         if s1_writes = '1' then
             wb1_we    <= '1';
@@ -250,14 +263,14 @@ begin
 
     -- ─── BTB read (F1 stage combinational) ──────────────────
     btb_index <= to_integer(unsigned(f1_pc(5 downto 2)));
-    btb_hit   <= btb(btb_index).valid and
-                 (btb(btb_index).tag = f1_pc(31 downto 6));
+    btb_tag_eq <= '1' when (btb(btb_index).tag = f1_pc(31 downto 6)) else '0';
+    btb_hit   <= btb(btb_index).valid and btb_tag_eq;
     btb_target <= btb(btb_index).target;
 
     -- BTFNT: backward conditional branch (signed imm < 0) => predict taken
-    pred_taken <= btb_hit and
-                  (signed(f2_insn(15 downto 0)) < 0) and
-                  (f2_insn(31 downto 28) = OP_BZ or f2_insn(31 downto 28) = OP_BNZ);
+    f2_br_neg  <= '1' when (signed(f2_insn(15 downto 0)) < 0) else '0';
+    f2_is_bzbnz<= '1' when (f2_insn(31 downto 28) = OP_BZ or f2_insn(31 downto 28) = OP_BNZ) else '0';
+    pred_taken <= btb_hit and f2_br_neg and f2_is_bzbnz;
 
     -- ─── F1 stage ────────────────────────────────────────────
     imem_addr <= f1_pc;
@@ -301,7 +314,8 @@ begin
     end process;
 
     -- ─── Forwarding: EX1 result → D1 slot 0 operands ───────
-    forward_ex1_en <= ex1_valid and ex1_reg_we and (unsigned(ex1_rd) /= 0);
+    ex1_rd_nz    <= '1' when (unsigned(ex1_rd) /= 0) else '0';
+    forward_ex1_en <= ex1_valid and ex1_reg_we and ex1_rd_nz;
     forward_ex1_rd <= ex1_rd;
     forward_ex1_val <= ex1_result;
 
@@ -486,12 +500,12 @@ begin
     end process;
 
     -- ─── Branch resolution (from D2 combinational -> flush in EX1) ─
-    branch_taken <= d2_s0_valid and (
-        ('1' when d2_s0_opcode = OP_BZ  and d2_s0_rs1_val = x"00000000" else '0') or
-        ('1' when d2_s0_opcode = OP_BNZ and d2_s0_rs1_val /= x"00000000" else '0') or
-        ('1' when d2_s0_opcode = OP_JMP  else '0') or
-        ('1' when d2_s0_opcode = OP_CALL else '0') or
-        ('1' when d2_s0_opcode = OP_RET  else '0'));
+    bz_taken   <= '1' when (d2_s0_opcode = OP_BZ)  and (d2_s0_rs1_val = x"00000000") else '0';
+    bnz_taken  <= '1' when (d2_s0_opcode = OP_BNZ) and (d2_s0_rs1_val /= x"00000000") else '0';
+    jmp_taken  <= '1' when (d2_s0_opcode = OP_JMP)  else '0';
+    call_taken <= '1' when (d2_s0_opcode = OP_CALL) else '0';
+    ret_taken  <= '1' when (d2_s0_opcode = OP_RET)  else '0';
+    branch_taken <= d2_s0_valid and (bz_taken or bnz_taken or jmp_taken or call_taken or ret_taken);
     br_target <= d2_s0_rs1_val when d2_s0_opcode = OP_RET else
                  std_logic_vector(unsigned(d2_s0_pc) + 4 + unsigned(d2_s0_imm));
     next_pc <= br_target;

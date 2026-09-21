@@ -61,6 +61,11 @@ architecture rtl of falcon_lite_core is
     signal pc           : std_logic_vector(31 downto 0);
     signal next_pc      : std_logic_vector(31 downto 0);
     signal branch_taken : std_logic;
+    signal bz_taken    : std_logic;
+    signal bnz_taken   : std_logic;
+    signal jmp_taken   : std_logic;
+    signal call_taken  : std_logic;
+    signal ret_taken   : std_logic;
 
     -- ─── ALU result ─────────────────────────────────────────
     signal alu_result : std_logic_vector(31 downto 0);
@@ -147,12 +152,12 @@ begin
         port map (a => d_rs1_val, b => d_rs2_val, op => d_opcode, result => alu_result);
 
     -- ─── Branch resolution ───────────────────────────────────
-    branch_taken <= d_valid and (
-        ('1' when (d_opcode = OP_BZ)  and (d_rs1_val = x"00000000") else '0') or
-        ('1' when (d_opcode = OP_BNZ) and (d_rs1_val /= x"00000000") else '0') or
-        ('1' when (d_opcode = OP_JMP)  else '0') or
-        ('1' when (d_opcode = OP_CALL) else '0') or
-        ('1' when (d_opcode = OP_RET)  else '0'));
+    bz_taken   <= '1' when (d_opcode = OP_BZ)  and (d_rs1_val = x"00000000") else '0';
+    bnz_taken  <= '1' when (d_opcode = OP_BNZ) and (d_rs1_val /= x"00000000") else '0';
+    jmp_taken  <= '1' when (d_opcode = OP_JMP)  else '0';
+    call_taken <= '1' when (d_opcode = OP_CALL) else '0';
+    ret_taken  <= '1' when (d_opcode = OP_RET)  else '0';
+    branch_taken <= d_valid and (bz_taken or bnz_taken or jmp_taken or call_taken or ret_taken);
     next_pc <= d_rs1_val when d_opcode = OP_RET else
                std_logic_vector(unsigned(d_pc) + 4 + unsigned(d_imm));
 
