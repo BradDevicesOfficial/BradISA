@@ -38,3 +38,25 @@ jobs:
             brad_core.vhd falcon_lite_core.vhd kestrel_core.vhd tb_brad_core.vhd
           ghdl -e --std=08 tb_brad_core
           ghdl -r --std=08 tb_brad_core --assert-level=warning
+
+  fpga:
+    name: FPGA (Tang Nano 9K / yosys synth_gowin)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install yosys + iverilog
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends yosys iverilog
+      - name: Board-level simulation (boot program drives the LEDs)
+        run: |
+          out=$(make -C rtl/fpga sim_board)
+          printf '%s\n' "$out"
+          grep -q '^PASS$' <<< "$out" \
+            || { echo "board-level sim did not report PASS"; exit 1; }
+      - name: Synthesise for Gowin GW1NR-9C and report the cell counts
+        run: |
+          make -C rtl/fpga gowin 2>&1 | tee /tmp/gowin_synth.log
+          sed -n '/Printing statistics/,/Executing CHECK/p' /tmp/gowin_synth.log | head -40
+      - name: Check the synthesis produced a netlist
+        run: |
+          test -s rtl/fpga/tangnano9k/tangnano9k.json \
+            || { echo "yosys produced no netlist for top_tangnano9k"; exit 1; }

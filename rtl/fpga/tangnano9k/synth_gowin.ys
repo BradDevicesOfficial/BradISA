@@ -1,0 +1,20 @@
+# yosys synthesis for the Tang Nano 9K (Gowin GW1NR-9C) board build.
+#
+# Run from rtl/fpga/tangnano9k/ via `make gowin`.  This proves the design
+# elaborates and maps onto Gowin primitives and gives real cell/resource
+# counts.  It does NOT produce a bitstream -- place-and-route for GW1N needs
+# nextpnr-himbaechel, Apicula, or Gowin EDA, and the "runs on real gates"
+# receipt needs the board in hand.  Synthesis is the honest first rung.
+
+read_verilog -sv -I../../verilog \
+    ../../verilog/bradisa_defines.v \
+    ../../verilog/brad_regfile.v \
+    ../../verilog/brad_alu.v \
+    ../../verilog/brad_core.v \
+    ./top_tangnano9k.v
+
+hierarchy -check -top top_tangnano9k
+
+synth_gowin -top top_tangnano9k -json tangnano9k.json
+
+stat

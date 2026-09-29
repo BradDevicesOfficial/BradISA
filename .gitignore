@@ -7,3 +7,7 @@ rtl/vhdl/tb_*
 # Verilog simulation artifacts
 rtl/verilog/tb.out
 rtl/verilog/*.vcd
+
+# Gowin synthesis output
+rtl/fpga/tangnano9k/*.json
+rtl/fpga/tangnano9k/*.rpt

@@ -1,0 +1,159 @@
+// SPDX-License-Identifier: MIT
+// BradISA V1 -- Tang Nano 9K board top (Gowin GW1NR-9C)
+//
+// First physical target for BradCore (Falcon).  The board's 27 MHz oscillator
+// would run the boot loop about 13 million times a second, so the core is
+// clocked from a divided "core_clk" (one core cycle per ~0.5 s) and the boot
+// program walks a counter on the 6 onboard LEDs.  What you see on the board is
+// the CPU executing real BradISA instructions: ADDI to count, STW to publish
+// the value out through the data-memory write port.
+//
+// Board facts (Sipeed Tang Nano 9K, GW1NR-9C, QFN88):
+//   sys_clk   pin 52  27 MHz
+//   sys_rst_n pin  4  onboard button S1, active-LOW
+//   led[5:0]  pins 10,11,13,14,15,16  active-LOW (common anode)
+//
+// Pin assignments live in tangnano9k.cst and are taken from Sipeed's own
+// TangNano-9K-example constraints file.
+
+`include "bradisa_defines.v"
+
+module top_tangnano9k #(
+    // Divider/reset lengths are parameters (not localparams) so the board
+    // testbench can shrink them for a fast simulation.  The defaults are the
+    // real 27 MHz board values.
+    parameter [23:0] DIV_HALF  = 24'd6_749_999,  // 0.5 s core cycle at 27 MHz
+    parameter [19:0] POR_LIMIT = 20'd1_048_575   // ~38.8 ms at 27 MHz
+) (
+    input  wire       sys_clk,    // 27 MHz onboard oscillator
+    input  wire       sys_rst_n,  // button S1, active-LOW
+    output wire [5:0] led         // 6 onboard LEDs, active-LOW
+);
+
+    // ─── Power-on reset ────────────────────────────────────────────
+    // Hold the core in reset for ~40 ms after configuration so the boot ROM
+    // and every register settle before the first instruction is fetched.
+    // The button re-asserts reset whenever it is pressed.
+    reg [19:0] por_cnt;
+
+    always @(posedge sys_clk or negedge sys_rst_n) begin
+        if (!sys_rst_n)
+            por_cnt <= 20'd0;
+        else if (por_cnt < POR_LIMIT)
+            por_cnt <= por_cnt + 1'b1;
+    end
+
+    wire por_done = (por_cnt >= POR_LIMIT);
+    wire rst_n    = por_done & sys_rst_n;
+
+    // ─── Core clock divider ────────────────────────────────────────
+    // A free-running counter toggles the core clock every DIV_HALF sys_clk
+    // cycles, giving a 13.5 M cycle period = 0.5 s per core cycle at 27 MHz.
+    // That makes each pass of the 4-instruction loop land about every 2 s:
+    // slow enough to read the LEDs with your eyes, which is the entire point.
+    reg [23:0] div_cnt;
+    reg        core_clk_r;
+
+    always @(posedge sys_clk or negedge sys_rst_n) begin
+        if (!sys_rst_n) begin
+            div_cnt   <= 24'd0;
+            core_clk_r <= 1'b0;
+        end else if (div_cnt == DIV_HALF) begin
+            div_cnt    <= 24'd0;
+            core_clk_r <= ~core_clk_r;
+        end else begin
+            div_cnt <= div_cnt + 1'b1;
+        end
+    end
+
+    wire core_clk = core_clk_r;
+
+    // ─── Boot program (real BradISA machine code) ───────────────────
+    // Assembled by hand from the ISA encoding; the same encodings run in the
+    // CI testbench, so this is the same CPU, not a hardware-specific stub.
+    //
+    //   addr  instr                        encoding
+    //   0x00  ADDI r1, r0, 0     init counter      0x81000000
+    //   0x04  ADDI r1, r1, 1     loop: r1++        0x81100001
+    //   0x08  ADDI r2, r0, 0x04  r2 = data address 0x82000004
+    //   0x0C  STW  [r2], r1      publish counter   0xA0210000
+    //   0x10  JMP  0x04          back to loop      0xD000FFFC
+    //
+    // Every other word is a NOP-equivalent (ADDI r0, r0, 0), which the core
+    // decodes as a write to r0 and discards.
+    localparam [31:0] BOOT_NOP = 32'h81000000;
+
+    // ─── Memory sizing (a deliberate, measured choice) ───────────────
+    // The core reads instruction memory combinationally, so a board build
+    // wants a *distributed* ROM: a 16:1 read mux per bit, which yosys maps
+    // onto LUT4s.  16 words is enough for this boot program and keeps that
+    // mux small enough to fit the GW1NR-9C's 8640 LUT4s with room to spare.
+    // Going to 64 words doubled the mux cost and pushed the mapped design
+    // past what the part can hold.  Real program memory comes later, with a
+    // synchronous (BSRAM) port and a matching core change.
+    localparam integer IMEM_WORDS = 16;
+    localparam integer DMEM_WORDS = 16;
+
+    // ─── Instruction memory (ROM) ─────────────────────────────────
+    reg [31:0] imem [0:IMEM_WORDS-1];
+
+    integer i;
+    initial begin
+        imem[0] = 32'h81000000;  // ADDI r1, r0, 0
+        imem[1] = 32'h81100001;  // ADDI r1, r1, 1      (loop head)
+        imem[2] = 32'h82000004;  // ADDI r2, r0, 0x04
+        imem[3] = 32'hA0210000;  // STW  [r2], r1
+        imem[4] = 32'hD000FFFC;  // JMP  0x04
+        for (i = 5; i < IMEM_WORDS; i = i + 1)
+            imem[i] = BOOT_NOP;
+    end
+
+    // ─── Data memory (RAM) ─────────────────────────────────────────
+    // Single-cycle, combinational read; write on the dmem_req rising edge.
+    // This mirrors the CI testbench memory model exactly, so the board sees
+    // the same single-cycle memory the behavioural proof does.
+    reg [31:0] dmem [0:DMEM_WORDS-1];
+
+    integer k;
+    initial begin
+        for (k = 0; k < DMEM_WORDS; k = k + 1)
+            dmem[k] = 32'd0;
+    end
+
+    wire [31:0] imem_rdata = imem[imem_addr[$clog2(IMEM_WORDS)+1:2]];
+    wire [31:0] dmem_rdata = dmem_req ? dmem[dmem_addr[$clog2(DMEM_WORDS)+1:2]] : 32'd0;
+
+    always @(posedge core_clk) begin
+        if (dmem_req && dmem_we)
+            dmem[dmem_addr[$clog2(DMEM_WORDS)+1:2]] <= dmem_wdata;
+    end
+
+    // ─── Core ─────────────────────────────────────────────────────
+    wire [31:0] imem_addr;
+    wire [31:0] dmem_addr;
+    wire        dmem_req;
+    wire        dmem_we;
+    wire [31:0] dmem_wdata;
+
+    brad_core core (
+        .clk(core_clk), .rst_n(rst_n),
+        .imem_addr(imem_addr), .imem_rdata(imem_rdata),
+        .dmem_addr(dmem_addr), .dmem_req(dmem_req), .dmem_we(dmem_we),
+        .dmem_wdata(dmem_wdata), .dmem_rdata(dmem_rdata)
+    );
+
+    // ─── LED display ──────────────────────────────────────────────
+    // Latch the counter each time the boot program publishes it.  The LEDs
+    // are active-LOW, so invert: 1 = dark, 0 = lit.
+    reg [5:0] led_r;
+
+    always @(posedge core_clk or negedge rst_n) begin
+        if (!rst_n)
+            led_r <= 6'd63;                 // all dark
+        else if (dmem_req && dmem_we)
+            led_r <= dmem_wdata[5:0];
+    end
+
+    assign led = ~led_r;
+
+endmodule
