@@ -48,7 +48,7 @@ module brad_core (
     // the Fetch-stage instruction), not the stale Decode-stage copy, so the
     // operand captured at the Decode posedge belongs to that instruction.
     wire [3:0]  rf_raddr1 = raw_rs1;
-    wire [3:0]  rf_raddr2 = (raw_op == BRAD_OP_STW) ? raw_rs2 : 4'd0;
+    wire [3:0]  rf_raddr2 = raw_rs2;
     wire [31:0] rf_rdata1;
     wire [31:0] rf_rdata2;
     wire        rf_we;
@@ -67,8 +67,16 @@ module brad_core (
     // instruction in Decode will write at its Decode->Execute commit posedge.
     // Stalling Fetch one cycle lets that write land before the dependent
     // instruction samples the register file.
+    //
+    // The RRR ops and STW are the instructions that actually consume the rs2
+    // field; ADDI, LDW, BZ, BNZ and JMP ignore it.  Testing rs2 only for STW
+    // (as this used to) left the register-file read port pinned to r0 for
+    // every RRR op -- ADD/SUB/MUL/AND/OR/XOR/SHL/SHR silently computed
+    // rd = rs1 op r0.  The gate has to match what the instruction reads, or
+    // the hazard unit lies about dependencies that are real.
+    wire raw_uses_rs2 = (raw_op <= BRAD_OP_SHR) || (raw_op == BRAD_OP_STW);
     wire raw_hazard = f_valid && d_valid && d_reg_we && (d_rd != BRAD_R0) &&
-                      ((raw_rs1 == d_rd) || (raw_op == BRAD_OP_STW && raw_rs2 == d_rd));
+                      ((raw_rs1 == d_rd) || (raw_uses_rs2 && (raw_rs2 == d_rd)));
     wire stall = raw_hazard;
 
     // ─── Fetch stage ──────────────────────────────────────────

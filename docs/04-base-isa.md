@@ -11,7 +11,7 @@ See [Instruction Formats](03-instruction-formats.md) for the bit-layout families
 | `rs1`, `rs2` | source register index (4 bits, 0–15) |
 | `rd` | destination register index (4 bits, 0–15) |
 | `imm16` | 16-bit signed immediate |
-| `imm20` | 20-bit signed immediate (JMP only) |
+| `off16` | 16-bit signed **word** offset for `BZ`/`BNZ`/`JMP`/`CALL` (±128 KiB after ×4) |
 | `sext(n)` | sign-extend `n` to 32 bits |
 | `mem32[addr]` | 32-bit word read from address `addr` |
 | `PC` | address of the current instruction |
@@ -197,14 +197,14 @@ LDW r1, [r2, -8]     ; r1 = mem32[r2 - 8]
 | | |
 |---|---|
 | **Format** | RI |
-| **Encoding** | `OPCODE[31:28]=0xA  RD[27:24]=rs2  RS1[23:20]  IMM16[15:0]` |
+| **Encoding** | `OPCODE[31:28]=0xA  UNUSED[27:24]  RS1[23:20]  RS2[19:16]  IMM16[15:0]` |
 | **Operation** | `mem32[rs1 + sext(imm16)] ← rs2` |
 | **Flags** | none (page-fault on misalignment) |
 | **Cycles (Falcon)** | 1 |
 
 Store word. Writes the 32-bit value of `rs2` to memory at address `rs1 + sext(imm16)`. The address must be 4-byte aligned.
 
-In the encoding, the `RD` field holds the index of the source register (`rs2`). The assembler resolves this mapping automatically.
+The source register lives in the `RS2` field `[19:16]`; `RD[27:24]` is unused and the core ignores it. The assembler always encodes `rs2` there, so a store assembled from this page works against the shipped RTL.
 
 ```asm
 STW r1, [r2, 0]      ; mem32[r2] = r1
@@ -260,12 +260,12 @@ loop:
 | | |
 |---|---|
 | **Format** | JMP |
-| **Encoding** | `OPCODE[31:28]=0xD  00000000[27:20]  OFFSET20[19:0]` |
-| **Operation** | `PC ← PC + 4 + sext(OFFSET20) × 4` |
+| **Encoding** | `OPCODE[31:28]=0xD  0000[27:24]  0000[23:20]  0000[19:16]  OFFSET16[15:0]` |
+| **Operation** | `PC ← PC + 4 + sext(OFFSET16) × 4` |
 | **Flags** | none |
 | **Cycles (Falcon)** | 1 (always +2 flush) |
 
-Unconditional jump. The 20-bit offset is sign-extended, multiplied by 4, and added to `PC + 4`. Range: ±4 MiB.
+Unconditional jump. The 16-bit word offset is sign-extended, multiplied by 4, and added to `PC + 4`. Range: ±128 KiB — the same reach as `BZ` and `BNZ`. Reaching further needs a veneer or a trampoline.
 
 JMP does not save a return address. For subroutine calls, use `CALL`.
 
@@ -278,12 +278,14 @@ JMP 0x1000           ; jump to address 0x1000 (via offset calculation)
 | | |
 |---|---|
 | **Format** | RI (specialised) |
-| **Encoding** | `OPCODE[31:28]=0xE  RD[27:24]  RS1[23:20]  IMM16[15:0]` |
-| **Operation** | `LR ← PC + 4;  PC ← PC + 4 + sext(IMM16) × 4` |
+| **Encoding** | `OPCODE[31:28]=0xE  UNUSED[27:24]  UNUSED[23:20]  UNUSED[19:16]  OFFSET16[15:0]` |
+| **Operation** | `LR ← PC + 4;  PC ← PC + 4 + sext(OFFSET16) × 4` |
 | **Flags** | none |
 | **Cycles (Falcon)** | 1 (+2 flush) |
 
-Call subroutine. Saves the return address (`PC + 4`) in `LR` (r14), then jumps to the target. The offset is encoded identically to `JMP` (20-bit word offset). The `RD` field selects the link register — conventionally `r14`.
+Call subroutine. Saves the return address (`PC + 4`) in `LR` (r14), then jumps to the target. The offset is a 16-bit word offset, identical to `JMP`: ±128 KiB.
+
+`CALL` writes `LR` unconditionally. The `RD` field is unused — a program that names a different link register still gets `r14` written, and the assembler rejects a non-`r14` link register rather than quietly emitting a word that does something else.
 
 On entry to the callee, `LR` holds the return address. Use `RET` to return.
 
@@ -307,19 +309,21 @@ LDW r14, [r13, -4]    ; restore return address
 
 | | |
 |---|---|
-| **Format** | RET (fixed encoding) |
-| **Encoding** | `0xF0000000` |
-| **Operation** | `PC ← LR` |
+| **Format** | RI (control) |
+| **Encoding** | `OPCODE[31:28]=0xF  0000[27:24]  RS1[23:20]  0000[19:16]  IMM16[15:0]` |
+| **Operation** | `PC ← rs1` |
 | **Flags** | none |
 | **Cycles (Falcon)** | 1 (+2 flush) |
 
-Return from subroutine. Reads `LR` (r14) and sets the program counter. The fetch pipeline is flushed.
-
-Opcode `0xF` is shared with the VSET vector extension via a class-selector field — see [VSET](08-vector.md). On a core without VSET, `0xF0000000` decodes as `RET`. On a core with VSET, `RET` is encoded with the vector class bits clear (`class = 000`, funct = 0x00) — the decoder routes correctly.
+Return from subroutine. The core implements `RET` as a plain register-indirect jump: `PC ← rs1`. There is no fixed encoding. To return via the link register, name `LR` in `RS1`:
 
 ```asm
-RET                  ; return to caller (PC ← LR)
+RET                  ; return to caller (PC ← LR), assembles to 0xF0E00000
 ```
+
+`0xF0E00000` is `RS1 = 14`, which is `LR`. The all-zero word `0xF0000000` is *also* a valid `RET` — it returns to `r0`, i.e. to address 0, which restarts the program from the top. Assembling `RET` picks `LR` for you.
+
+Opcode `0xF` is shared with the VSET vector extension via a class-selector field — see [VSET](08-vector.md). On a core without VSET, `0xF` decodes as `RET`. On a core with VSET, `RET` is encoded with the vector class bits clear (`class = 000`, funct = 0x00) — the decoder routes correctly.
 
 ## Instruction set summary
 
@@ -338,8 +342,8 @@ RET                  ; return to caller (PC ← LR)
 | 0xA | STW | RI | mem32[rs1+sext(imm16)] ← rs2 | 1 |
 | 0xB | BZ | BR | if rs1==0: branch | 1/3 |
 | 0xC | BNZ | BR | if rs1!=0: branch | 1/3 |
-| 0xD | JMP | JMP | PC ← PC+4+sext(off20)×4 | 3 |
-| 0xE | CALL | RI | LR=PC+4; PC ← PC+4+sext(off)×4 | 3 |
-| 0xF | RET | RET | PC ← LR | 3 |
+| 0xD | JMP | JMP | PC ← PC+4+sext(off16)×4 | 3 |
+| 0xE | CALL | RI | LR=PC+4; PC ← PC+4+sext(off16)×4 | 3 |
+| 0xF | RET | RI | PC ← rs1 (name `LR` to return) | 3 |
 
 Branch/jump costs: 1 cycle not-taken, 3 cycles taken (2-cycle pipeline flush on Falcon).

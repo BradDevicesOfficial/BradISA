@@ -23,6 +23,20 @@ jobs:
           out=$(vvp tb.out)
           printf '%s\n' "$out"
           grep -q '^PASS$' <<< "$out" || { echo "tb did not report PASS"; exit 1; }
+      - name: Compile + simulate tb_brad_isa (all 16 opcodes)
+        # tb_brad_core runs ADDI, BNZ and JMP only.  That is how ADD/SUB/MUL/
+        # AND/OR/XOR/SHL/SHR shipped broken while CI stayed green, so the
+        # regression that exercises every opcode the core implements has to be
+        # the one gating releases.
+        run: |
+          cd rtl/verilog
+          iverilog -g2012 -s tb_brad_isa -o isa.out tb_brad_isa.v brad_core.v \
+            brad_alu.v brad_bp.v brad_decode.v brad_execute.v brad_fetch.v \
+            brad_regfile.v brad_writeback.v bradisa_defines.v \
+            falcon_lite_core.v kestrel_core.v
+          out=$(vvp isa.out)
+          printf '%s\n' "$out"
+          grep -q '^PASS$' <<< "$out" || { echo "full-ISA tb did not report PASS"; exit 1; }
 
   vhdl:
     name: VHDL (GHDL)
@@ -38,6 +52,15 @@ jobs:
             brad_core.vhd falcon_lite_core.vhd kestrel_core.vhd tb_brad_core.vhd
           ghdl -e --std=08 tb_brad_core
           ghdl -r --std=08 tb_brad_core --assert-level=warning
+      - name: Analyze, elaborate, simulate tb_brad_isa (all 16 opcodes)
+        # The Verilog tree has the same regression.  Both trees must exercise
+        # every opcode, or they drift and only one of them is trustworthy.
+        run: |
+          cd rtl/vhdl
+          ghdl -a --std=08 bradisa_pkg.vhd brad_regfile.vhd brad_alu.vhd \
+            brad_core.vhd falcon_lite_core.vhd kestrel_core.vhd tb_brad_isa.vhd
+          ghdl -e --std=08 tb_brad_isa
+          ghdl -r --std=08 tb_brad_isa --assert-level=warning
 
   fpga:
     name: FPGA (Tang Nano 9K / yosys synth_gowin)

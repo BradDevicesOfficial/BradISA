@@ -97,8 +97,8 @@ Every term a BradISA reader will meet, one line each.
 | **RRR** | The register-register-register format: `OPCODE RD RS1 RS2 0000…`. |
 | **RI** | The register-immediate format: `OPCODE RD RS1 IMM16`. |
 | **BR** | The branch format: `OPCODE 0000 RS1 0000 OFFSET16`. |
-| **JMP** | PC-relative 20-bit offset jump (±4 MiB). |
-| **RET** | Fixed-encoding return: `0xF0000000`, PC ← LR. |
+| **JMP** | PC-relative jump with a 16-bit word offset (±128 KiB). |
+| **RET** | Register-indirect return: `PC ← rs1`. Naming `LR` gives `0xF0E00000`; there is no fixed encoding. |
 | **CRRR / CRI / CBR / CMV / CNOP / CRET** | The compressed 16-bit formats. |
 | **Opcode packing** | 4-bit opcode in bits [31:28]; no aliases; each opcode maps to exactly one format. |
 | **Immediate sign-extension** | 16-bit immediates are sign-extended to 32 before the operation. |

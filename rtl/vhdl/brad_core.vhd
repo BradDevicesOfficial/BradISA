@@ -59,8 +59,9 @@ architecture rtl of brad_core is
     signal wb_result : std_logic_vector(31 downto 0);
 
     -- RAW hazard
-    signal raw_hazard : std_logic;
-    signal stall      : std_logic;
+    signal raw_hazard  : std_logic;
+    signal stall       : std_logic;
+    signal raw_uses_rs2 : std_logic;
 
     -- Branch resolution
     signal bz_taken   : std_logic;
@@ -95,7 +96,7 @@ begin
     -- ─── Register file instance ──────────────────────────────
     -- Read ports track the incoming (Fetch-stage) instruction's registers so
     -- the operand captured at the Decode posedge belongs to that instruction.
-    rf_raddr2 <= raw_rs2 when (raw_op = OP_STW) else REG_R0;
+    rf_raddr2 <= raw_rs2;
 
     regfile_inst : entity work.brad_regfile
         port map (
@@ -115,9 +116,21 @@ begin
     -- instruction in Decode will write at its Decode->Execute commit posedge.
     -- Stalling Fetch one cycle lets that write land before the dependent
     -- instruction samples the register file.
+    -- The RRR ops and STW are the instructions that actually consume the rs2
+    -- field; ADDI, LDW, BZ, BNZ and JMP ignore it.  Testing rs2 only for STW
+    -- (as this used to) left the register-file read port pinned to r0 for every
+    -- RRR op -- ADD/SUB/MUL/AND/OR/XOR/SHL/SHR silently computed rd = rs1 op r0.
+    -- The gate has to match what the instruction reads, or the hazard unit
+    -- lies about dependencies that are real.
+    -- Each comparison is parenthesised: in VHDL "=" binds looser than "<=".
+    -- The condition is already a boolean, so no "= '1'" comparison is needed
+    -- (VHDL will not compare a boolean against a std_logic literal).
+    raw_uses_rs2 <= '1' when ((raw_op <= OP_SHR) or (raw_op = OP_STW)) else '0';
+
     raw_hazard <= '1' when (f_valid = '1') and (d_valid = '1') and (d_reg_we = '1')
                             and (d_rd /= REG_R0)
-                            and ( (raw_rs1 = d_rd) or ((raw_op = OP_STW) and (raw_rs2 = d_rd)) )
+                            and ( (raw_rs1 = d_rd)
+                                  or ((raw_uses_rs2 = '1') and (raw_rs2 = d_rd)) )
                    else '0';
     stall <= raw_hazard;
 

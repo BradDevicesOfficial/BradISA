@@ -84,43 +84,48 @@ No flags are set by ALU operations. Branch conditions test the register value di
 Used by: `JMP`
 
 ```
- 31  28 27                      20 19                0
-+------+-------------------------+-------------------+
-| OPCODE| 00000000                | OFFSET20 (×4)     |
-| [4]   | [8]                     | [20]              |
-+------+-------------------------+-------------------+
+ 31  28 27  24 23  20 19  16 15                0
++------+------+------+------+-------------------+
+| OPCODE| 0000 | 0000 | 0000 | OFFSET16 (×4)     |
+| [4]   | [4]  | [4]  | [4]  | [16]              |
++------+------+------+------+-------------------+
 ```
 
-Field widths (bits): `OPCODE` 4 · reserved 8 · `OFFSET20` 20
+Field widths (bits): `OPCODE` 4 · unused 12 · `OFFSET16` 16
 
 **Operation:**
 
 ```
-target = PC + 4 + sext(OFFSET20) × 4
+target = PC + 4 + sext(OFFSET16) × 4
 ```
 
-The 20-bit offset is sign-extended and multiplied by 4. Range: **±4 MiB** from the jump instruction.
+The 16-bit offset is sign-extended and multiplied by 4. Range: **±128 KiB** from the jump instruction — identical to `BZ` and `BNZ`. Anything wider needs a veneer.
 
-`JMP` is unconditional. It is the only unconditional direct control transfer.
+`JMP` is unconditional. It is the only unconditional direct control transfer. `CALL` uses this same encoding; see [Base ISA](04-base-isa.md#0xe--call).
 
 ## RET — Return
 
 Used by: `RET`
 
 ```
- 31                                           0
-+----------------------------------------------+
-| 0xF0000000                                    |
-+----------------------------------------------+
+ 31  28 27  24 23  20 19  16 15                0
++------+------+------+------+-------------------+
+| 0xF  | 0000 | RS1  | 0000 | 0x0000          |
+| [4]   | [4]  | [4]  | [4]  | [16]            |
++------+------+------+------+-------------------+
 ```
 
-**Encoding:** `0xF0000000` — the entire 32-bit instruction is a single fixed value.
+**Operation:** `PC ← rs1`
 
-**Operation:** `PC ← LR (r14)`
+RET is not a fixed encoding: it is a register-indirect jump selected by opcode `0xF`, and it returns to whichever register `RS1` names. Naming the link register is the usual case:
 
-RET reads the link register (r14) and sets the program counter. It is the only instruction that reads `LR` directly. The processor shall flush the fetch pipeline on RET.
+```
+RET          ; PC ← LR (r14)   →  0xF0E00000
+```
 
-RET occupies opcode `0xF`. When the vector extension (VSET) is present, opcode `0xF` is shared via a class-selector field — see [VSET](08-vector.md). On a core without VSET, `0xF0000000` decodes as RET.
+`0xF0000000` is a *valid* RET that returns to `r0`, i.e. address 0 — it restarts the program from the top rather than returning to a caller. RET does not modify `LR`, and the processor flushes the fetch pipeline on it.
+
+RET occupies opcode `0xF`. When the vector extension (VSET) is present, opcode `0xF` is shared via a class-selector field — see [VSET](08-vector.md). On a core without VSET, `0xF` decodes as RET.
 
 ## Encoding summary
 
@@ -129,8 +134,8 @@ RET occupies opcode `0xF`. When the vector extension (VSET) is present, opcode `
 | RRR | `OPCODE RD RS1 RS2 0000…` | 4 + 4 + 4 + 4 + 16 | none | register only |
 | RI | `OPCODE RD RS1 IMM16` | 4 + 4 + 4 + 16 | 16-bit signed | ±32 K (addr) |
 | BR | `OPCODE 0 RS1 0 OFFSET16` | 4 + 4 + 4 + 4 + 16 | 16-bit ×4 signed | ±128 KiB |
-| JMP | `OPCODE 0…0 OFFSET20` | 4 + 8 + 20 | 20-bit ×4 signed | ±4 MiB |
-| RET | `0xF0000000` | fixed | — | — |
+| JMP | `OPCODE 0…0 OFFSET16` | 4 + 12 + 16 | 16-bit ×4 signed | ±128 KiB |
+| RET | `OPCODE 0 RS1 0 IMM16` | 4 + 4 + 4 + 4 + 16 | none (`PC ← rs1`) | register only |
 
 ## Alignment and PC-relative addressing
 

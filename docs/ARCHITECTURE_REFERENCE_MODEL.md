@@ -34,7 +34,7 @@
 | State | Count/Width | Notes |
 |-------|-------------|-------|
 | **GPRs r0–r15** | 16 × 32-bit (Gen1); 64-bit extendable | r0 hardwired zero; r1–r4 args (r1 = return); r13 sp, r14 lr, r15 pc (read-only); ABI table in the ARM appx. |
-| **PC** | 32-bit | 4-byte aligned; BR ±128 KiB (16-bit word offset); JMP/CALL ±4 MiB (20-bit word offset); RET through lr |
+| **PC** | 32-bit | 4-byte aligned; BR/JMP/CALL ±128 KiB (16-bit word offset); RET is `PC ← rs1`, normally `PC ← lr` |
 | **Vector regs v0–v31** | 32 × 256-bit (VSET) | v0 = mask (Gen2 predication); ABI v1–v4 args, v8–v15 callee-saved |
 | **Status MSRs** | VSTATUS.VE, POWER, etc. | Vector-enable, power/thermal |
 | **Float** | none (scalar) | All FP in vector regs, lane 0 |
