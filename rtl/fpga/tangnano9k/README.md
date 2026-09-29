@@ -1,13 +1,14 @@
 # Tang Nano 9K board build (Gowin GW1NR-9C)
 
 First physical target for BradCore (Falcon). This directory holds the board
-top-level, its pin constraints, a yosys `synth_gowin` script, and a
-board-level testbench.
+top-level, its pin constraints, a yosys `synth_gowin` script, and two
+testbenches — one for the RTL, one for the synthesized netlist.
 
-**Status: DESIGNED + SYNTHESIZED. Not yet `RUNS_ON_REAL_GATES`.** Synthesis
-onto Gowin primitives succeeds and the numbers below are real, but no bitstream
-has been generated and no board has been plugged in. See
-[What is still missing](#what-is-still-missing).
+**Status: DESIGNED + SYNTHESIZED + GATE-LEVEL VERIFIED. Not yet
+`RUNS_ON_REAL_GATES`.** Synthesis onto Gowin primitives succeeds, the netlist
+simulates correctly against yosys's own cell models, and the design fits the
+part with ~80% of its LUTs free — but no bitstream has been generated and no
+board has been plugged in. See [What is still missing](#what-is-still-missing).
 
 ## Files
 
@@ -16,7 +17,9 @@ has been generated and no board has been plugged in. See
 | `top_tangnano9k.v` | Board top: power-on reset, core clock divider, boot ROM, data RAM, LED latch, core instance |
 | `tangnano9k.cst` | Gowin pin constraints |
 | `synth_gowin.ys` | yosys `synth_gowin` script — the synthesis receipt |
-| `tb_top_tangnano9k.v` | Board-level testbench: proves the boot program drives the LEDs |
+| `synth_gate.ys` | synthesis to a Verilog netlist, for gate-level simulation |
+| `tb_top_tangnano9k.v` | RTL testbench: proves the boot program drives the LEDs |
+| `tb_gl_tangnano9k.v` | Gate-level testbench: proves the *synthesized* netlist still counts |
 
 ## Board facts
 
@@ -76,40 +79,66 @@ stopped counting, published garbage, or never published at all would all fail.
 `yosys 0.52`, `synth_gowin`, yosys stat after mapping. Device is GW1NR-9C:
 **8,640 LUT4, 6,480 FF, 26 BSRAM (468 Kb), 20 × 18×18 multipliers.**
 
-| Design | Cells | LUT1–4 | MUX2_LUT5–8 | FFs |
-|--------|-------|--------|-------------|-----|
-| Full board top | 5,591 | 3,338 | 1,849 | 240 |
-| Same design, 32×32 `MUL` removed (probe only) | **956** | 465 | 119 | 240 |
-| A bare 32×32 multiplier, on its own | **4,625** | 879 | — | 0 |
+Count LUT4s, not cells. The default flow emits `MUX2_LUT5..8` cells, which look
+like fat multi-LUT4 consumers and are not — each is a wide-LUT optimisation that
+still occupies exactly one LUT4. Adding `-nowidelut` forces the design down to
+plain LUT4s, so the cell count *is* the fabric count:
 
-**The multiply is the whole problem.** A single 32×32 multiply is 83% of the
-entire design. The GW1NR-9C has 20 dedicated 18×18 multipliers — the silicon is
-there — but yosys's Gowin flow has no DSP mapping and instead mis-maps `*` onto
-the Gowin `ALU` primitive, building the whole thing out of LUTs. Mapped onto the
-part as-is, the design needs on the order of 8,400 LUT4s of 8,640, which will
-not route. Remove the multiply and the same core is 956 cells: it fits with
-room to spare.
+| Design | LUT4 | FF | % of device LUTs |
+|--------|------|----|------------------|
+| Full board top | **1,707** | 240 | **20%** |
+| The 32×32 `MUL` on its own | 1,330 | 0 | 78% of the design's LUTs |
+| Same design, `MUL` removed (probe only) | 507 | 240 | 6% |
 
-Two honest caveats on these numbers:
+**The design fits the GW1NR-9C with roughly 80% of its LUTs unused.** The
+multiply is the single biggest cost at 1,330 LUT4 — 78% of the logic — so it is
+the obvious optimisation target, but it is not a blocker. For scale: the whole
+rest of the core, register file, boot ROM, RAM, divider and LED logic together is
+507 LUT4 and 240 flops.
 
-- They are for **this boot program**. The counter only uses two registers, so
-  yosys prunes the other fourteen — hence 240 FFs rather than 512. A program
-  using all 16 registers will cost more.
-- `MUX2_LUTn` cells each occupy *several* LUT4s, so the true LUT4 count is
-  higher than the LUT cell count. Only place-and-route can state it exactly.
+The one thing yosys's Gowin flow cannot do is infer a DSP. `*` becomes LUT logic
+because `synth_gowin` has no multiplier mapping, even though the part carries 20
+18×18 blocks. That is a missed optimisation, not a capacity problem.
+
+Two honest caveats:
+
+- These are for **this boot program**. The counter touches two registers, so
+  yosys prunes the other fourteen — hence 240 FFs, not 512. A program using all
+  16 registers costs more, and a real one will also want more memory.
+- Gate-level simulation below is proof the netlist *computes*, not proof it
+  routes. Utilisation says there is room; only place-and-route and a board say
+  it works.
+
+## Gate-level verification
+
+`make sim_gate` synthesises the design to Gowin primitives and then simulates
+**that netlist** against yosys's own behavioural models of the Gowin cells
+(`cells_sim.v`), checking the LED value walks 1, 2, 3, … with zero errors.
+
+This is the step that catches a synthesis bug rather than an RTL bug. It runs
+against a build whose divider constant is shrunk via `chparam` — same logic,
+different timing constant — and currently reports **96 LED steps, 0 sequence
+errors, final count 32**.
+
+So the design is no longer only "it elaborates". It is "the gates yosys produced
+count correctly."
 
 ## What is still missing
 
-1. **A DSP-aware multiply.** The concrete next RTL task. Either a hand-built
-   18×18 decomposition the Gowin flow will map, or a `$mul` that a
-   prjtrellis-himbaechel/nextpnr flow picks up as a hard block. The core is
-   otherwise comfortably inside the part.
-2. **A bitstream.** GW1N place-and-route needs nextpnr-himbaechel, Apicula, or
-   Gowin EDA. None is in CI yet. `synth_gowin` deliberately stops at synthesis.
-3. **Real program memory.** The core reads instruction memory
+1. **A bitstream.** This is now the honest blocker. The design fits the part and
+   the synthesized netlist computes correctly, but GW1N place-and-route needs
+   nextpnr-himbaechel, Apicula, or Gowin EDA, and none is in CI. `synth_gowin`
+   deliberately stops at synthesis.
+2. **A board.** Until a bitstream is on real silicon and a person watches the
+   LEDs count, the honest tag is DESIGNED + SYNTHESIZED + GATE-LEVEL VERIFIED.
+   The `RUNS_ON_REAL_GATES` badge stays unflipped.
+3. **A DSP-aware multiply.** An optimisation, not a blocker. At 1,330 LUT4 the
+   multiply is 78% of the logic, and `synth_gowin` cannot infer a DSP. A
+   hand-built 18×18 decomposition, or a `$mul` a prjtrellis-himbaechel flow
+   claims as a hard block, would hand most of that back and free the LUTs for
+   real program memory and a full register file.
+4. **Real program memory.** The core reads instruction memory
    combinationally, so this build uses a small distributed ROM (16 words). Real
    program memory wants a synchronous BSRAM port, which means a matching core
-   change — a real design step, not a config tweak.
-4. **The board.** Until the bitstream is on real silicon and a person watches
-   the LEDs count, the honest tag is DESIGNED + SYNTHESIZED. The
-   `RUNS_ON_REAL_GATES` badge stays unflipped.
+   change — a design step, not a config tweak. Note this is the change most
+   likely to be needed next, and the freed LUTs from (3) are what pay for it.

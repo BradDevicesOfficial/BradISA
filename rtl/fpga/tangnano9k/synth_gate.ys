@@ -1,0 +1,30 @@
+# Synthesis to a Verilog netlist, for gate-level simulation.
+#
+# Run from rtl/fpga/tangnano9k/ via `make sim_gate`.  This is the same
+# synth_gowin flow as synth_gowin.ys, except it:
+#
+#   1. emits a Verilog netlist (-vout) instead of JSON, so a simulator can
+#      read it, and
+#   2. shrinks DIV_HALF / POR_LIMIT with chparam so the 0.5 s core clock the
+#      board needs becomes a few hundred nanoseconds the testbench can wait
+#      out.  Only the divider constant changes -- the logic synthesized is the
+#      logic that ships.
+#
+# The netlist is then simulated against yosys's own behavioural models of the
+# Gowin primitives, which is what makes this a gate-level check rather than
+# another RTL run.
+
+read_verilog -sv -I../../verilog \
+    ../../verilog/bradisa_defines.v \
+    ../../verilog/brad_regfile.v \
+    ../../verilog/brad_alu.v \
+    ../../verilog/brad_core.v \
+    ./top_tangnano9k.v
+
+hierarchy -check -top top_tangnano9k
+
+chparam -set DIV_HALF 3 -set POR_LIMIT 7 top_tangnano9k
+
+synth_gowin -top top_tangnano9k -vout tangnano9k_gate.v
+
+stat

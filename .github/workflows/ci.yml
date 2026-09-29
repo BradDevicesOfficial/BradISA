@@ -52,6 +52,12 @@ jobs:
           printf '%s\n' "$out"
           grep -q '^PASS$' <<< "$out" \
             || { echo "board-level sim did not report PASS"; exit 1; }
+      - name: Gate-level simulation (the synthesized netlist still counts)
+        run: |
+          out=$(make -C rtl/fpga sim_gate)
+          printf '%s\n' "$out"
+          grep -q '^PASS$' <<< "$out" \
+            || { echo "gate-level sim did not report PASS"; exit 1; }
       - name: Synthesise for Gowin GW1NR-9C and report the cell counts
         run: |
           make -C rtl/fpga gowin 2>&1 | tee /tmp/gowin_synth.log
@@ -60,3 +66,5 @@ jobs:
         run: |
           test -s rtl/fpga/tangnano9k/tangnano9k.json \
             || { echo "yosys produced no netlist for top_tangnano9k"; exit 1; }
+      - name: Check it fits the GW1NR-9C (LUT4/FF budget)
+        run: make -C rtl/fpga gowin_fit

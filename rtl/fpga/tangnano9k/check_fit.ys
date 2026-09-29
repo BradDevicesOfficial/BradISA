@@ -1,0 +1,27 @@
+# Resource fit check for the GW1NR-9C.
+#
+# Run from rtl/fpga/tangnano9k/ via `make gowin_fit`.
+#
+# synth_gowin.ys reports a cell count, and a cell count is easy to misread:
+# the default flow emits MUX2_LUT5..8 cells that look like they each burn
+# several LUT4s when in fact each occupies exactly one.  Getting that wrong
+# once produced a confident, entirely wrong "this will not route" claim.
+#
+# -nowidelut removes the wide-LUT optimisation so every logic cell becomes a
+# plain LUT4, which makes the count directly comparable to the device's LUT4
+# budget.  This script is the regression guard against repeating the mistake.
+#
+# GW1NR-9C: 8640 LUT4, 6480 FF.
+
+read_verilog -sv -I../../verilog \
+    ../../verilog/bradisa_defines.v \
+    ../../verilog/brad_regfile.v \
+    ../../verilog/brad_alu.v \
+    ../../verilog/brad_core.v \
+    ./top_tangnano9k.v
+
+hierarchy -check -top top_tangnano9k
+
+synth_gowin -nowidelut -top top_tangnano9k
+
+stat

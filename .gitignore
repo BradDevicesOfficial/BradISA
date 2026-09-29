@@ -11,3 +11,4 @@ rtl/verilog/*.vcd
 # Gowin synthesis output
 rtl/fpga/tangnano9k/*.json
 rtl/fpga/tangnano9k/*.rpt
+rtl/fpga/tangnano9k/tangnano9k_gate.v

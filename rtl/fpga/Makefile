@@ -31,7 +31,7 @@ VHDL_SRCS = \
     $(VHDL_DIR)/brad_core.vhd \
     $(VHDL_DIR)/tb_brad_core.vhd
 
-.PHONY: all vivado quartus gowin sim_board lint_verilog lint_vhdl clean
+.PHONY: all vivado quartus gowin gowin_fit sim_board sim_gate lint_verilog lint_vhdl clean
 
 all: lint_verilog lint_vhdl
 
@@ -47,11 +47,35 @@ quartus:
 # Synthesises the board top onto Gowin primitives and reports real
 # cell counts.  This is a synthesis receipt, not a bitstream: GW1N
 # place-and-route needs nextpnr-himbaechel, Apicula, or Gowin EDA,
-# and "runs on real gates" needs the board in hand.  See
-# tangnano9k/README.md for the resource findings, including why the
-# 32x32 MUL currently stops this design from fitting the part.
+# and "runs on real gates" needs the board in hand.  Measured: the
+# design uses 1,707 of the part's 8,640 LUT4 and 240 of 6,480 FFs.
+# See tangnano9k/README.md for the full resource breakdown.
 gowin:
 	cd $(FPGA_DIR)/$(GOWIN_DIR) && $(YOSYS) -s synth_gowin.ys
+
+# ─── Gowin: does it actually fit the part? ──────────────────────
+# -nowidelut turns the whole design into plain LUT4s, so the count is
+# directly comparable to the GW1NR-9C's 8640 LUT4 / 6480 FF budget.
+# This is the guard against misreading a cell count as a fabric count.
+GOWIN_LUT_BUDGET ?= 8640
+GOWIN_FF_BUDGET  ?= 6480
+
+gowin_fit:
+	@cd $(FPGA_DIR)/$(GOWIN_DIR) && $(YOSYS) -s check_fit.ys 2>&1 \
+	  | tee /tmp/brad_fit.log | sed -n '/Printing statistics/,/Executing CHECK/p'
+	@luts=$$(awk '/Printing statistics/{buf=""} {buf=buf $$0 "\n"} END{printf "%s", buf}' \
+	          /tmp/brad_fit.log | grep -oE '^ +LUT[0-9] +[0-9]+' \
+	          | awk '{s+=$$2} END {print s+0}'); \
+	 ffs=$$(awk '/Printing statistics/{buf=""} {buf=buf $$0 "\n"} END{printf "%s", buf}' \
+	          /tmp/brad_fit.log | grep -oE '^ +DFF[A-Z]* +[0-9]+' \
+	          | awk '{s+=$$2} END {print s+0}'); \
+	 echo ""; \
+	 echo "GW1NR-9C fit: $$luts / $(GOWIN_LUT_BUDGET) LUT4, $$ffs / $(GOWIN_FF_BUDGET) FF"; \
+	 if [ "$$luts" -gt "$(GOWIN_LUT_BUDGET)" ] || [ "$$ffs" -gt "$(GOWIN_FF_BUDGET)" ]; then \
+	   echo "FAIL: over budget"; exit 1; \
+	 else \
+	   echo "PASS: fits"; \
+	 fi
 
 # ─── Board-level simulation: the boot program drives the LEDs ──
 # The shipped board runs one core cycle per 0.5 s, which is right for
@@ -68,6 +92,24 @@ sim_board:
 	  $(VERILOG_DIR)/brad_core.v
 	$(VVP) /tmp/brad_top_sim.out
 
+# ─── Gate-level simulation: the SYNTHESIZED netlist still counts ──
+# The step that catches a synthesis bug instead of an RTL bug.  yosys
+# emits a Verilog netlist (shrinking only the divider constant via
+# chparam, so the logic is the shipping logic), and the netlist is then
+# simulated against yosys's own behavioural models of the Gowin cells.
+GOWIN_CELLS ?= $(firstword $(wildcard /usr/share/yosys/gowin/cells_sim.v))
+
+sim_gate:
+	cd $(FPGA_DIR)/$(GOWIN_DIR) && $(YOSYS) -s synth_gate.ys
+	@test -n "$(GOWIN_CELLS)" || { \
+	  echo "cannot find yosys's Gowin cell models (cells_sim.v)"; exit 1; }
+	$(IVERILOG) -g2012 -s tb_gl_tangnano9k \
+	  -o /tmp/brad_gate_sim.out \
+	  $(FPGA_DIR)/$(GOWIN_DIR)/tb_gl_tangnano9k.v \
+	  $(FPGA_DIR)/$(GOWIN_DIR)/tangnano9k_gate.v \
+	  $(GOWIN_CELLS)
+	$(VVP) /tmp/brad_gate_sim.out
+
 # ─── Verilator lint ────────────────────────────────────────────
 lint_verilog:
 	$(VERILATOR) --lint-only -Wall $(VERILOG_SRCS)
@@ -79,6 +121,7 @@ lint_vhdl:
 # ─── Clean ─────────────────────────────────────────────────────
 clean:
 	rm -rf $(FPGA_DIR)/brad_core $(FPGA_DIR)/*.rpt $(FPGA_DIR)/*.bit
-	rm -rf $(GOWIN_DIR)/*.json $(GOWIN_DIR)/*.rpt
+	rm -rf $(GOWIN_DIR)/*.json $(GOWIN_DIR)/*.rpt $(GOWIN_DIR)/*_gate.v
+	rm -rf /tmp/brad_top_sim.out /tmp/brad_gate_sim.out
 	rm -rf $(VHDL_DIR)/*.o $(VHDL_DIR)/*.cf $(VHDL_DIR)/work-obj08.cf
 	rm -rf $(VERILOG_DIR)/*.o
