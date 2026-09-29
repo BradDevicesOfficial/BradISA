@@ -62,6 +62,23 @@ jobs:
           ghdl -e --std=08 tb_brad_isa
           ghdl -r --std=08 tb_brad_isa --assert-level=warning
 
+  toolchain:
+    name: bradasm (assembler + drift guards)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build bradasm
+        run: make -C tools/bradasm
+      - name: Assembler self-test (full ISA + RTL drift guard)
+        # test_brad_as parses rtl/verilog/bradisa_defines.v and fails if the
+        # assembler's opcode table has drifted from the RTL.  It also asserts
+        # the boot ROM words byte for byte.
+        run: make -C tools/bradasm test
+      - name: boot_rom.vh is byte-identical to boot.s
+        run: make -C rtl/fpga boot_rom_check
+      - name: tb_brad_isa_prog.mem is byte-identical to tb_brad_isa.s
+        run: make -C rtl/asm check
+
   fpga:
     name: FPGA (Tang Nano 9K / yosys synth_gowin)
     runs-on: ubuntu-latest

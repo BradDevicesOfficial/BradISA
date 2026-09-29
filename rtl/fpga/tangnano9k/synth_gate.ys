@@ -14,7 +14,7 @@
 # Gowin primitives, which is what makes this a gate-level check rather than
 # another RTL run.
 
-read_verilog -sv -I../../verilog \
+read_verilog -sv -I../../verilog -I. \
     ../../verilog/bradisa_defines.v \
     ../../verilog/brad_regfile.v \
     ../../verilog/brad_alu.v \

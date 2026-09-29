@@ -86,7 +86,7 @@ plain LUT4s, so the cell count *is* the fabric count:
 
 | Design | LUT4 | FF | % of device LUTs |
 |--------|------|----|------------------|
-| Full board top | **~1,700–1,800** | 240 | **~21%** |
+| Full board top | **~1,700–1,900** | 240 | **~22%** |
 | The 32×32 `MUL` on its own | 1,330 | 0 | 78% of the design's LUTs |
 | Same design, `MUL` removed (probe only) | 507 | 240 | 6% |
 
@@ -97,8 +97,9 @@ rest of the core, register file, boot ROM, RAM, divider and LED logic together i
 507 LUT4 and 240 flops.
 
 The top-level figure is a range, not a constant: abc9's mapping is not perfectly
-reproducible, and CI measured 1,707 where a local run gave 1,776. It is a budget
-check, not a golden number, and `make gowin_fit` is what enforces it.
+reproducible, and CI measured 1,707 where a local run gave 1,776 and another
+1,854. It is a budget check, not a golden number, and `make gowin_fit` is what
+enforces it.
 
 The one thing yosys's Gowin flow cannot do is infer a DSP. `*` becomes LUT logic
 because `synth_gowin` has no multiplier mapping, even though the part carries 20

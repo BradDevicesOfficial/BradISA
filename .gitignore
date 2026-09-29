@@ -12,3 +12,7 @@ rtl/verilog/*.vcd
 rtl/fpga/tangnano9k/*.json
 rtl/fpga/tangnano9k/*.rpt
 rtl/fpga/tangnano9k/tangnano9k_gate.v
+
+# bradasm build products (the sources are tracked; the binary is not)
+tools/bradasm/build/
+a.bin

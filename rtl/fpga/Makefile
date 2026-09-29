@@ -31,9 +31,53 @@ VHDL_SRCS = \
     $(VHDL_DIR)/brad_core.vhd \
     $(VHDL_DIR)/tb_brad_core.vhd
 
-.PHONY: all vivado quartus gowin gowin_fit sim_board sim_gate lint_verilog lint_vhdl clean
+.PHONY: all vivado quartus gowin gowin_fit sim_board sim_gate lint_verilog \
+        lint_vhdl clean boot_rom boot_rom_check
 
 all: lint_verilog lint_vhdl
+
+# ─── bradasm: the board's boot program ───────────────────────
+# boot.s is the source of truth for the machine code the Tang Nano
+# 9K runs.  bradasm assembles it into a Verilog include that the
+# board top `include`s, so the program on the board is written in
+# assembly and its encodings are the ones the assembler's self-test
+# checks against simulated RTL.
+#
+# The generated header is checked in so the tree simulates without a
+# C compiler; CI regenerates it and fails on a diff, so it cannot go
+# stale without somebody noticing.
+ASM       ?= ../../tools/bradasm/build/bradasm
+BRADASM_DIR ?= ../../tools/bradasm
+BOOT_SRC  = $(GOWIN_DIR)/boot.s
+BOOT_VH   = $(GOWIN_DIR)/boot_rom.vh
+
+$(ASM):
+	$(MAKE) -C $(BRADASM_DIR)
+
+$(BOOT_VH): $(BOOT_SRC) $(ASM)
+	$(ASM) -V $@ $<
+
+# Force a refresh, for people who just want their tree updated.
+boot_rom:
+	$(ASM) -V $(BOOT_VH) $(BOOT_SRC)
+
+# Re-generate into a temp file and fail if the checked-in header does not
+# match.  This is the step that makes the include trustworthy: it is only a
+# convenience if CI proves it is identical to what boot.s assembles to.
+# cmp rather than git diff, so the check works on a fresh checkout whether
+# or not the header has been committed yet.
+boot_rom_check: $(BOOT_VH)
+	$(ASM) -V /tmp/boot_rom.check.vh $(BOOT_SRC)
+	@cmp -s /tmp/boot_rom.check.vh $(BOOT_VH) || { \
+	   echo "ERROR: $(BOOT_VH) is stale; re-run 'make boot_rom' and commit"; \
+	   rm -f /tmp/boot_rom.check.vh; \
+	   exit 1; }
+	@rm -f /tmp/boot_rom.check.vh
+	@echo "boot_rom.vh matches boot.s"
+
+# Anything that builds or simulates the board needs the ROM present.
+gowin: $(BOOT_VH)
+sim_board: $(BOOT_VH)
 
 # ─── Vivado (Xilinx) ───────────────────────────────────────────
 vivado:
@@ -48,9 +92,9 @@ quartus:
 # cell counts.  This is a synthesis receipt, not a bitstream: GW1N
 # place-and-route needs nextpnr-himbaechel, Apicula, or Gowin EDA,
 # and "runs on real gates" needs the board in hand.  Measured: the
-# design uses 1,707 of the part's 8,640 LUT4 and 240 of 6,480 FFs.
+# design uses 1,854 of the part's 8,640 LUT4 and 240 of 6,480 FFs.
 # See tangnano9k/README.md for the full resource breakdown.
-gowin:
+gowin: $(BOOT_VH)
 	cd $(FPGA_DIR)/$(GOWIN_DIR) && $(YOSYS) -s synth_gowin.ys
 
 # ─── Gowin: does it actually fit the part? ──────────────────────
@@ -83,6 +127,7 @@ gowin_fit:
 # the clock divider.  Only the divider constant changes.
 sim_board:
 	$(IVERILOG) -g2012 -DBRAD_FAST_SIM -I$(VERILOG_DIR) \
+	  -I$(FPGA_DIR)/$(GOWIN_DIR) \
 	  -o /tmp/brad_top_sim.out -s tb_top_tangnano9k \
 	  $(FPGA_DIR)/$(GOWIN_DIR)/tb_top_tangnano9k.v \
 	  $(FPGA_DIR)/$(GOWIN_DIR)/top_tangnano9k.v \
@@ -104,6 +149,7 @@ sim_gate:
 	@test -n "$(GOWIN_CELLS)" || { \
 	  echo "cannot find yosys's Gowin cell models (cells_sim.v)"; exit 1; }
 	$(IVERILOG) -g2012 -s tb_gl_tangnano9k \
+	  -I$(FPGA_DIR)/$(GOWIN_DIR) \
 	  -o /tmp/brad_gate_sim.out \
 	  $(FPGA_DIR)/$(GOWIN_DIR)/tb_gl_tangnano9k.v \
 	  $(FPGA_DIR)/$(GOWIN_DIR)/tangnano9k_gate.v \

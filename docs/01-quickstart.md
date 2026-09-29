@@ -1,6 +1,9 @@
 # Quick-start
 
-This repository ships the **BradISA specification and reference RTL**. It does not bundle a toolchain, and there is no build step in this repository.
+This repository ships the **BradISA specification and reference RTL**, and
+bundles the **bradasm** assembler — the tool this repository itself builds
+and runs: the board boot ROM and the full-ISA testbench programs are written
+in assembly and assembled by it.
 
 ## What is here
 
@@ -9,7 +12,9 @@ This repository ships the **BradISA specification and reference RTL**. It does n
 | `spec/bradisa_spec.tex` | V1 base ISA (normative, LaTeX) |
 | `spec/bradisa_v2_ext.tex` | V2 extensions (normative, LaTeX) |
 | `rtl/verilog/`, `rtl/vhdl/` | reference core implementations |
+| `rtl/asm/` | the assembled full-ISA program both testbenches load |
 | `rtl/fpga/` | Artix-7 / Cyclone V constraints and build scripts |
+| `tools/bradasm/` | the bundled assembler (C99, built by `make -C tools/bradasm`) |
 | `docs/` | the guides you are reading |
 
 ## Read the spec
@@ -42,10 +47,12 @@ The opcodes, operands, and encodings are defined in [Base ISA](04-base-isa.md) a
 
 ## Running a program
 
-There is no runtime bundled in this repository. Two reference paths exist:
+Two reference paths exist:
 
 1. **Simulate the RTL.** Load `rtl/verilog/brad_core.v` (or the VHDL equivalent) into any Verilog-2001 simulator. The bundled testbench `rtl/verilog/tb_brad_core.v` runs a 1..100 counter loop; see [FPGA](12-fpga.md).
-2. **Use the reference assembler and emulator.** The Brad Devices source kit provides a reference assembler (`bradasm`) and a cycle-approximate core emulator (`brad_core_emu`). They are not part of this repository; [Toolchain](11-toolchain.md) documents their interfaces for orientation.
+2. **Assemble with the bundled tool.** `make -C tools/bradasm` builds `tools/bradasm/build/bradasm`. The full-ISA regression program `rtl/asm/tb_brad_isa.s` is written in this assembly syntax and assembled into the image the testbenches load, so every instruction in these guides is the real thing.
+
+The source-kit core emulator (`brad_core_emu`) is not part of this repository; [Toolchain](11-toolchain.md) documents its interface for orientation.
 
 ## Next steps
 
