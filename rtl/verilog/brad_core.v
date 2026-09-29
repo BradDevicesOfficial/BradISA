@@ -35,15 +35,8 @@ module brad_core (
     reg [31:0]  d_rs2_val;
     reg [31:0]  d_imm;
     reg         d_reg_we;
-    // Stage 3: Execute+Writeback (combined)
-    reg         e_valid;
-    reg [3:0]   e_rd;
-    reg [31:0]  e_result;
-    reg [31:0]  e_addr;
-    reg         e_reg_we;
-    reg         e_mem_req;
-    reg         e_mem_we;
-    reg [31:0]  e_store_data;
+    // (no separate E-stage registers: writeback is Decode-driven so the
+    //  result commits to the register file in the same cycle the ALU sees it)
 
     // ─── PC ────────────────────────────────────────────────────
     reg [31:0] pc;
@@ -51,8 +44,11 @@ module brad_core (
     wire        branch_taken;
 
     // ─── Register file ─────────────────────────────────────────
-    wire [3:0]  rf_raddr1 = d_rs1;
-    wire [3:0]  rf_raddr2 = (d_opcode == BRAD_OP_STW) ? d_rs2 : 4'd0;
+    // Read ports track the instruction about to enter Decode (raw_* fields of
+    // the Fetch-stage instruction), not the stale Decode-stage copy, so the
+    // operand captured at the Decode posedge belongs to that instruction.
+    wire [3:0]  rf_raddr1 = raw_rs1;
+    wire [3:0]  rf_raddr2 = (raw_op == BRAD_OP_STW) ? raw_rs2 : 4'd0;
     wire [31:0] rf_rdata1;
     wire [31:0] rf_rdata2;
     wire        rf_we;
@@ -67,9 +63,12 @@ module brad_core (
     );
 
     // ─── Hazard detection ─────────────────────────────────────
-    // RAW hazard: decode reads a register that EX is writing
-    wire raw_hazard = d_valid && e_valid && e_reg_we && (e_rd != BRAD_R0) &&
-                      ((d_rs1 == e_rd) || (d_opcode == BRAD_OP_STW && d_rs2 == e_rd));
+    // RAW hazard: the instruction in Fetch reads a register that the
+    // instruction in Decode will write at its Decode->Execute commit posedge.
+    // Stalling Fetch one cycle lets that write land before the dependent
+    // instruction samples the register file.
+    wire raw_hazard = f_valid && d_valid && d_reg_we && (d_rd != BRAD_R0) &&
+                      ((raw_rs1 == d_rd) || (raw_op == BRAD_OP_STW && raw_rs2 == d_rd));
     wire stall = raw_hazard;
 
     // ─── Fetch stage ──────────────────────────────────────────
@@ -114,7 +113,12 @@ module brad_core (
             d_reg_we  <= 1'b0;
         end else if (branch_taken) begin
             d_valid <= 1'b0;
-        end else if (!stall) begin
+        end else if (stall) begin
+            // The producer in Decode has already committed its writeback
+            // through the Decode-driven write port this posedge; draining
+            // Decode lets the Fetch-vs-Decode hazard release cleanly.
+            d_valid <= 1'b0;
+        end else begin
             d_valid   <= f_valid;
             d_pc      <= f_pc;
             d_opcode  <= raw_op;
@@ -129,15 +133,19 @@ module brad_core (
         end
     end
 
-    // ─── Execute + Writeback stage ────────────────────────────
-    wire [3:0] e_opcode = d_opcode;
+    // ─── Execute + Writeback (Decode-driven) ─────────────────
+    // The ALU and the writeback data mux are purely combinational on the
+    // Decode-stage instruction, so the register-file write commits at the
+    // same posedge the instruction leaves Decode for Execute.  The
+    // Fetch-vs-Decode hazard above stalls Fetch for exactly one cycle when a
+    // dependent instruction would otherwise collide with that write.
     reg  [31:0] alu_result;
 
     // ALU
     wire [31:0] alu_a = d_rs1_val;
     wire [31:0] alu_b = d_rs2_val;
     always @(*) begin
-        case (e_opcode)
+        case (d_opcode)
             BRAD_OP_ADD: alu_result = alu_a + alu_b;
             BRAD_OP_SUB: alu_result = alu_a - alu_b;
             BRAD_OP_MUL: alu_result = alu_a * alu_b;
@@ -150,64 +158,33 @@ module brad_core (
         endcase
     end
 
-    // Branch resolution
-    wire bz_taken   = (e_opcode == BRAD_OP_BZ) && (d_rs1_val == 32'd0);
-    wire bnz_taken  = (e_opcode == BRAD_OP_BNZ) && (d_rs1_val != 32'd0);
-    wire jmp_taken  = (e_opcode == BRAD_OP_JMP);
-    wire call_taken = (e_opcode == BRAD_OP_CALL);
-    wire ret_taken  = (e_opcode == BRAD_OP_RET);
+    // Branch resolution (Decode-stage)
+    wire bz_taken   = (d_opcode == BRAD_OP_BZ) && (d_rs1_val == 32'd0);
+    wire bnz_taken  = (d_opcode == BRAD_OP_BNZ) && (d_rs1_val != 32'd0);
+    wire jmp_taken  = (d_opcode == BRAD_OP_JMP);
+    wire call_taken = (d_opcode == BRAD_OP_CALL);
+    wire ret_taken  = (d_opcode == BRAD_OP_RET);
     assign branch_taken = d_valid && (bz_taken | bnz_taken | jmp_taken | call_taken | ret_taken);
-    // BR/JMP/CALL target: PC+4 + imm (imm is already offset*4 in BR format)
-    wire [31:0] br_target = d_pc + 32'd4 + d_imm;
+    // BR/JMP/CALL target: PC+4 + (sext(offset) * 4)  -- offset is a word offset
+    wire [31:0] br_target = d_pc + 32'd4 + {d_imm[29:0], 2'b00};
     assign next_pc = ret_taken ? d_rs1_val : br_target;
 
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            e_valid      <= 1'b0;
-            e_rd         <= 4'd0;
-            e_result     <= 32'd0;
-            e_addr       <= 32'd0;
-            e_reg_we     <= 1'b0;
-            e_mem_req    <= 1'b0;
-            e_mem_we     <= 1'b0;
-            e_store_data <= 32'd0;
-        end else if (!stall) begin
-            e_valid   <= d_valid && !branch_taken;
-            e_rd      <= d_rd;
-            e_reg_we  <= d_reg_we;
-
-            // ALU / ADDI result
-            if (e_opcode <= BRAD_OP_SHR)
-                e_result <= alu_result;
-            else if (e_opcode == BRAD_OP_ADDI)
-                e_result <= d_rs1_val + d_imm;
-            else
-                e_result <= 32'd0;
-
-            // CALL: save PC+4 to link register
-            if (e_opcode == BRAD_OP_CALL) begin
-                e_result <= d_pc + 32'd4;
-                e_rd     <= BRAD_LR;
-                e_reg_we <= 1'b1;
-            end
-
-            // Memory access
-            e_addr       <= d_rs1_val + d_imm;
-            e_store_data <= d_rs2_val;
-            e_mem_req    <= (e_opcode == BRAD_OP_LDW) || (e_opcode == BRAD_OP_STW);
-            e_mem_we     <= (e_opcode == BRAD_OP_STW);
-        end
-    end
-
     // ─── Writeback to register file ───────────────────────────
-    assign rf_we    = e_valid && e_reg_we && (e_rd != BRAD_R0);
-    assign rf_waddr = e_rd;
-    assign rf_wdata = (e_mem_req && !e_mem_we) ? dmem_rdata : e_result;
+    // CALL saves PC+4 to the link register; otherwise rd gets the ALU/ADDI
+    // result or the single-cycle load data.
+    wire [31:0] wb_result = (d_opcode == BRAD_OP_CALL) ? (d_pc + 32'd4)
+                          : (d_opcode <= BRAD_OP_SHR) ? alu_result
+                          : (d_opcode == BRAD_OP_ADDI) ? (d_rs1_val + d_imm)
+                          : 32'd0;
+    assign rf_we    = d_valid && ( (d_reg_we && (d_rd != BRAD_R0)) ||
+                                   (d_opcode == BRAD_OP_CALL) );
+    assign rf_waddr = (d_opcode == BRAD_OP_CALL) ? BRAD_LR : d_rd;
+    assign rf_wdata = (d_opcode == BRAD_OP_LDW) ? dmem_rdata : wb_result;
 
-    // Memory port outputs
-    assign dmem_addr  = e_addr;
-    assign dmem_req   = e_mem_req;
-    assign dmem_we    = e_mem_we;
-    assign dmem_wdata = e_store_data;
+    // Memory port outputs (single-cycle memory; address/data from Decode)
+    assign dmem_addr  = d_rs1_val + d_imm;
+    assign dmem_req   = d_valid && (d_opcode == BRAD_OP_LDW || d_opcode == BRAD_OP_STW);
+    assign dmem_we    = d_valid && (d_opcode == BRAD_OP_STW);
+    assign dmem_wdata = d_rs2_val;
 
 endmodule

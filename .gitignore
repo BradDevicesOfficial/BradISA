@@ -3,3 +3,7 @@ rtl/vhdl/work-obj*.cf
 rtl/vhdl/e~*.o
 rtl/vhdl/tb_*
 !rtl/vhdl/tb_*.vhd
+
+# Verilog simulation artifacts
+rtl/verilog/tb.out
+rtl/verilog/*.vcd

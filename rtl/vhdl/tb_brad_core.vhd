@@ -4,6 +4,7 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
+use std.env.all;
 use work.bradisa_pkg.all;
 
 entity tb_brad_core is
@@ -27,6 +28,10 @@ architecture sim of tb_brad_core is
 
     constant PERIOD : time := 10 ns;
 
+    -- Functional self-check: count fetches of the loop body (address 8).
+    -- 1 pre-loop fetch + 99 taken branches = 100 exactly when the loop finishes.
+    signal loop_fetches : integer := 0;
+
 begin
 
     -- DUT
@@ -39,7 +44,9 @@ begin
             dmem_rdata => dmem_rdata
         );
 
-    imem_rdata <= imem(to_integer(unsigned(imem_addr(9 downto 2))));
+    -- Undefined (X/U) instruction addresses read as 0; the core's pc becomes
+    -- defined at the first clock edge after reset.
+    imem_rdata <= imem(to_integer(unsigned(imem_addr(9 downto 2)))) when not is_x(imem_addr(9 downto 2)) else (others => '0');
     dmem_rdata <= dmem(to_integer(unsigned(dmem_addr(9 downto 2)))) when dmem_req = '1' else (others => '0');
 
     process(dmem_req, dmem_we, dmem_addr, dmem_wdata) begin
@@ -51,23 +58,38 @@ begin
     -- Clock
     clk <= not clk after PERIOD/2;
 
+    -- Loop-fetch counter (functional self-check)
+    process(clk) begin
+        if rising_edge(clk) then
+            if imem_addr = x"00000008" then
+                loop_fetches <= loop_fetches + 1;
+            end if;
+        end if;
+    end process;
+
     process begin
         -- Load program
         imem(0) <= x"81100064";  -- ADDI r1, r1, 100
         imem(1) <= x"82200000";  -- ADDI r2, r2, 0
         imem(2) <= x"8110FFFF";  -- ADDI r1, r1, -1  (loop:)
         imem(3) <= x"82200001";  -- ADDI r2, r2, 1
-        imem(4) <= x"C010FFF0";  -- BNZ  r1, loop     (-4 words)
-        imem(5) <= x"F0000000";  -- RET
+        imem(4) <= x"C010FFFD";  -- BNZ  r1, loop     (offset = -3 words = -12 bytes)
+        imem(5) <= x"D00FFFFF";  -- JMP  self         (epilogue: spin in place)
 
         rst_n <= '0';
         wait for 15 ns;
         rst_n <= '1';
 
-        wait for 5000 ns;
+        wait for 6000 ns;
+
+        if loop_fetches >= 100 then
+            report "PASS: loop completed (100 fetches of loop body)" severity note;
+        else
+            report "FAIL: loop did not complete" severity failure;
+        end if;
 
         report "Simulation complete" severity note;
-        wait;
+        stop;  -- terminate cleanly (exit 0) so the CI GHDL job completes
     end process;
 
 end architecture sim;

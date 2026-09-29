@@ -29,13 +29,14 @@ begin
         if rst_n = '0' then
             regs <= (others => (others => '0'));
         elsif rising_edge(clk) then
-            if we = '1' and waddr /= REG_R0 then
+            if (we = '1') and (not is_x(waddr)) and (waddr /= REG_R0) then
                 regs(to_integer(unsigned(waddr))) <= wdata;
             end if;
         end if;
     end process;
 
-    rdata1 <= (others => '0') when raddr1 = REG_R0 else regs(to_integer(unsigned(raddr1)));
-    rdata2 <= (others => '0') when raddr2 = REG_R0 else regs(to_integer(unsigned(raddr2)));
+    -- Reads with an undefined (X/U) address return 0, mirroring an R0 read.
+    rdata1 <= (others => '0') when (raddr1 = REG_R0) or is_x(raddr1) else regs(to_integer(unsigned(raddr1)));
+    rdata2 <= (others => '0') when (raddr2 = REG_R0) or is_x(raddr2) else regs(to_integer(unsigned(raddr2)));
 
 end architecture rtl;

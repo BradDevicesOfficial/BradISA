@@ -45,8 +45,8 @@ module tb_brad_core;
         imem[1] = 32'h82200000;  // ADDI r2, r2, 0
         imem[2] = 32'h8110FFFF;  // ADDI r1, r1, -1   (loop:)
         imem[3] = 32'h82200001;  // ADDI r2, r2, 1
-        imem[4] = 32'hC010FFF0;  // BNZ  r1, loop     (offset = -4 words = -16)
-        imem[5] = 32'hF0000000;  // RET
+        imem[4] = 32'hC010FFFD;  // BNZ  r1, loop     (offset = -3 words = -12 bytes)
+        imem[5] = 32'hD00FFFFF;  // JMP  self         (epilogue: spin in place)
 
         for (i = 6; i < 256; i = i + 1) imem[i] = 32'h00000000;
         for (i = 0; i < 256; i = i + 1) dmem[i] = 32'd0;
@@ -55,8 +55,8 @@ module tb_brad_core;
         rst_n = 0;
         #15 rst_n = 1;
 
-        // Run for 500 cycles
-        #5000;
+        // Run for 600 cycles (loop completes at ~510)
+        #6000;
 
         $display("r1 = %0d  r2 = %0d", dut.regfile.regs[1], dut.regfile.regs[2]);
         if (dut.regfile.regs[1] === 32'd0 && dut.regfile.regs[2] === 32'd100)
