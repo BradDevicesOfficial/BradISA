@@ -86,7 +86,7 @@ plain LUT4s, so the cell count *is* the fabric count:
 
 | Design | LUT4 | FF | % of device LUTs |
 |--------|------|----|------------------|
-| Full board top | **1,707** | 240 | **20%** |
+| Full board top | **~1,700–1,800** | 240 | **~21%** |
 | The 32×32 `MUL` on its own | 1,330 | 0 | 78% of the design's LUTs |
 | Same design, `MUL` removed (probe only) | 507 | 240 | 6% |
 
@@ -95,6 +95,10 @@ multiply is the single biggest cost at 1,330 LUT4 — 78% of the logic — so it
 the obvious optimisation target, but it is not a blocker. For scale: the whole
 rest of the core, register file, boot ROM, RAM, divider and LED logic together is
 507 LUT4 and 240 flops.
+
+The top-level figure is a range, not a constant: abc9's mapping is not perfectly
+reproducible, and CI measured 1,707 where a local run gave 1,776. It is a budget
+check, not a golden number, and `make gowin_fit` is what enforces it.
 
 The one thing yosys's Gowin flow cannot do is infer a DSP. `*` becomes LUT logic
 because `synth_gowin` has no multiplier mapping, even though the part carries 20
@@ -118,10 +122,25 @@ Two honest caveats:
 This is the step that catches a synthesis bug rather than an RTL bug. It runs
 against a build whose divider constant is shrunk via `chparam` — same logic,
 different timing constant — and currently reports **96 LED steps, 0 sequence
-errors, final count 32**.
+errors, final count 32**, identically to the RTL testbench.
 
 So the design is no longer only "it elaborates". It is "the gates yosys produced
 count correctly."
+
+## CI gates for this board
+
+Four, all in the `FPGA (Tang Nano 9K / yosys synth_gowin)` job:
+
+| Step | What it refuses to let through |
+|------|--------------------------------|
+| `sim_board` | an RTL boot program that doesn't drive a correct counting sequence |
+| `sim_gate` | a design that breaks when synthesized into gates |
+| netlist check | a yosys run that produces no netlist at all |
+| `gowin_fit` | a design that outgrows the GW1NR-9C's LUT4/FF budget |
+
+`gowin_fit` is the one added in response to getting the fit estimate wrong by
+roughly 5×. It is a real guard, not a decoration: run it with
+`GOWIN_LUT_BUDGET=1000` and it fails.
 
 ## What is still missing
 
